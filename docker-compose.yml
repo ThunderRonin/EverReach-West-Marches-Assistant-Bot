@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  everreach-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: everreach-assistant
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - GUILD_ID_DEV=${GUILD_ID_DEV}
+      - GUILD_ID_PROD=${GUILD_ID_PROD:-${GUILD_ID_DEV}}
+      - DATABASE_URL=file:/app/data/database.db
+      - EMBEDDING_API_URL=${EMBEDDING_API_URL}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
+    volumes:
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+    networks:
+      - everreach-network
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  everreach-network:
+    driver: bridge
+
+volumes:
+  database-data:
+    driver: local

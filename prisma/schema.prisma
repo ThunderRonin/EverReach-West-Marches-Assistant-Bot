@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  discordId String
+  guildId   String
+  createdAt DateTime  @default(now())
+  character Character?
+  notes     Note[]
+  @@unique([discordId, guildId])
+}
+
+model Character {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @unique
+  name      String
+  gold      Int        @default(100)
+  inventory Inventory[]
+  tx        TxLog[]
+  auctions  Auction[]  @relation("AuctionSeller")
+  wonAuctions Auction[] @relation("AuctionBidder")
+  bids      Bid[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Item {
+  id        Int     @id @default(autoincrement())
+  key       String  @unique
+  name      String
+  baseValue Int
+  inventory Inventory[]
+  auctions  Auction[]
+}
+
+model Inventory {
+  id        Int  @id @default(autoincrement())
+  charId    Int
+  itemId    Int
+  qty       Int  @default(0)
+  @@unique([charId, itemId])
+  character Character @relation(fields: [charId], references: [id], onDelete: Cascade)
+  item      Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model TxLog {
+  id        Int      @id @default(autoincrement())
+  charId    Int
+  type      String   // "BUY" | "TRADE" | "AUCTION_SALE" | "AUCTION_REFUND" | "GRANT"
+  payload   String   // JSON string
+  createdAt DateTime @default(now())
+  character Character @relation(fields: [charId], references: [id], onDelete: Cascade)
+}
+
+model Trade {
+  id          Int      @id @default(autoincrement())
+  fromCharId  Int
+  toCharId    Int
+  // Both sides' offers captured as JSON strings: { items: [{itemId, qty}], gold: number }
+  offerFrom   String   // JSON string
+  offerTo     String   // JSON string
+  status      String   @default("PENDING") // PENDING|CANCELLED|EXECUTED|EXPIRED
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model Auction {
+  id              Int      @id @default(autoincrement())
+  sellerId        Int
+  itemId          Int
+  qty             Int
+  minBid          Int
+  currentBid      Int?
+  currentBidderId Int?
+  expiresAt       DateTime
+  status          String   @default("OPEN")  // OPEN|SOLD|EXPIRED|CANCELLED
+  createdAt       DateTime @default(now())
+
+  seller  Character @relation("AuctionSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  item    Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  bidder  Character? @relation("AuctionBidder", fields: [currentBidderId], references: [id])
+  bids    Bid[]
+}
+
+model Bid {
+  id        Int      @id @default(autoincrement())
+  auctionId Int
+  bidderId  Int
+  amount    Int
+  createdAt DateTime @default(now())
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidder    Character @relation(fields: [bidderId], references: [id], onDelete: Cascade)
+}
+
+model Note {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  text      String
+  // Store embedding as BLOB of Float32
+  embedding Bytes?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,52 @@
+[
+  {
+    "key": "health_potion",
+    "name": "Health Potion",
+    "baseValue": 25
+  },
+  {
+    "key": "mana_potion",
+    "name": "Mana Potion",
+    "baseValue": 30
+  },
+  {
+    "key": "iron_sword",
+    "name": "Iron Sword",
+    "baseValue": 100
+  },
+  {
+    "key": "steel_armor",
+    "name": "Steel Armor",
+    "baseValue": 200
+  },
+  {
+    "key": "leather_boots",
+    "name": "Leather Boots",
+    "baseValue": 50
+  },
+  {
+    "key": "magic_ring",
+    "name": "Magic Ring",
+    "baseValue": 150
+  },
+  {
+    "key": "scroll_fireball",
+    "name": "Fireball Scroll",
+    "baseValue": 75
+  },
+  {
+    "key": "rope",
+    "name": "Rope (50ft)",
+    "baseValue": 10
+  },
+  {
+    "key": "torch",
+    "name": "Torch",
+    "baseValue": 5
+  },
+  {
+    "key": "rations",
+    "name": "Rations (1 day)",
+    "baseValue": 15
+  }
+]
