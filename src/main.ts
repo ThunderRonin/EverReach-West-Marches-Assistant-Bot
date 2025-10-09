@@ -22,17 +22,25 @@ async function bootstrap() {
     logger.log('🚀 EverReach Assistant Discord Bot starting...');
     logger.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
 
-    // Keep the application running (no HTTP server needed for Discord bot)
+    // Enable shutdown hooks to properly cleanup
+    app.enableShutdownHooks();
+
+    // Start HTTP server (triggers Necord's onApplicationBootstrap which calls client.login())
+    const port = process.env.PORT || 3000;
+    await app.listen(port);
+    logger.log(`✅ Application started on port ${port}`);
+
+    // Graceful shutdown
     process.on('SIGINT', () => {
       logger.log('🛑 Shutting down gracefully...');
-      void prismaService.onModuleDestroy().then(() => {
+      void app.close().then(() => {
         process.exit(0);
       });
     });
 
     process.on('SIGTERM', () => {
       logger.log('🛑 Shutting down gracefully...');
-      void prismaService.onModuleDestroy().then(() => {
+      void app.close().then(() => {
         process.exit(0);
       });
     });

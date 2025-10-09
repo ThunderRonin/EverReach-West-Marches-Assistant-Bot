@@ -7,8 +7,8 @@ import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 export class ReadyListener {
   private readonly logger = new Logger(ReadyListener.name);
 
-  @Once('ready')
-  onReady(@Context() [client]: ContextOf<'ready'>) {
+  @Once('clientReady')
+  onReady(@Context() [client]: ContextOf<'clientReady'>) {
     this.logger.log(`✅ Discord bot logged in as ${client.user.tag}!`);
 
     // Send startup notification

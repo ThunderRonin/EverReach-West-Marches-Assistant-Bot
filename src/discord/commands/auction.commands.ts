@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Context,
-  SlashCommand,
+  createCommandGroupDecorator,
   Subcommand,
   Options,
   StringOption,
@@ -10,6 +10,11 @@ import {
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { AuctionService } from '../../auction/auction.service';
+
+const AuctionCommand = createCommandGroupDecorator({
+  name: 'auction',
+  description: 'Auction commands',
+});
 
 export class AuctionCreateDto {
   @StringOption({
@@ -63,19 +68,12 @@ export class AuctionBidDto {
 }
 
 @Injectable()
+@AuctionCommand()
 export class AuctionCommands {
   constructor(
     private readonly usersService: UsersService,
     private readonly auctionService: AuctionService,
   ) {}
-
-  @SlashCommand({
-    name: 'auction',
-    description: 'Auction commands',
-  })
-  async onAuction() {
-    // Parent command (required for subcommands)
-  }
 
   @Subcommand({
     name: 'list',

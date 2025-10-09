@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Context,
-  SlashCommand,
+  createCommandGroupDecorator,
   Subcommand,
   Options,
   StringOption,
@@ -13,6 +13,11 @@ import { UsersService } from '../../users/users.service';
 import { TradeService } from '../../trade/trade.service';
 import { PrismaService } from '../../db/prisma.service';
 import type { TradeOffer } from '../../trade/trade.service';
+
+const TradeCommand = createCommandGroupDecorator({
+  name: 'trade',
+  description: 'Trade commands',
+});
 
 export class TradeStartDto {
   @UserOption({
@@ -35,13 +40,6 @@ export class TradeAddDto {
   })
   type: 'item' | 'gold';
 
-  @StringOption({
-    name: 'key',
-    description: 'Item key (for items)',
-    required: false,
-  })
-  key?: string;
-
   @IntegerOption({
     name: 'qty',
     description: 'Quantity',
@@ -49,23 +47,23 @@ export class TradeAddDto {
     min_value: 1,
   })
   qty: number;
+
+  @StringOption({
+    name: 'key',
+    description: 'Item key (for items)',
+    required: false,
+  })
+  key?: string;
 }
 
 @Injectable()
+@TradeCommand()
 export class TradeCommands {
   constructor(
     private readonly usersService: UsersService,
     private readonly tradeService: TradeService,
     private readonly prisma: PrismaService,
   ) {}
-
-  @SlashCommand({
-    name: 'trade',
-    description: 'Trade commands',
-  })
-  async onTrade() {
-    // Parent command (required for subcommands to work)
-  }
 
   @Subcommand({
     name: 'start',

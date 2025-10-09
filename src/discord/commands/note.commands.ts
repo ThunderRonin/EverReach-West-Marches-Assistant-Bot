@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Context,
-  SlashCommand,
+  createCommandGroupDecorator,
   Subcommand,
   Options,
   StringOption,
@@ -9,6 +9,11 @@ import {
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { NotesService } from '../../notes/notes.service';
+
+const NoteCommand = createCommandGroupDecorator({
+  name: 'note',
+  description: 'Note commands',
+});
 
 export class NoteAddDto {
   @StringOption({
@@ -29,19 +34,12 @@ export class NoteSearchDto {
 }
 
 @Injectable()
+@NoteCommand()
 export class NoteCommands {
   constructor(
     private readonly usersService: UsersService,
     private readonly notesService: NotesService,
   ) {}
-
-  @SlashCommand({
-    name: 'note',
-    description: 'Note commands',
-  })
-  async onNote() {
-    // Parent command (required for subcommands)
-  }
 
   @Subcommand({
     name: 'add',

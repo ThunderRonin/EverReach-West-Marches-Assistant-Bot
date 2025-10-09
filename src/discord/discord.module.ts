@@ -24,7 +24,9 @@ import { ErrorListener } from './listeners/error.listener';
 @Module({
   imports: [
     ConfigModule,
-    NecordModule.forRoot(necordConfig()),
+    NecordModule.forRootAsync({
+      useFactory: () => necordConfig(),
+    }),
     UsersModule,
     EconomyModule,
     TradeModule,
