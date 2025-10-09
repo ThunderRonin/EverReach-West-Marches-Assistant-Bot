@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import type { Prisma, Trade } from '@prisma/client';
 import { PrismaService } from '../db/prisma.service';
+import {
+  InsufficientGoldError,
+  InsufficientItemsError,
+  ItemNotFoundError,
+} from '../core/errors/errors';
 
 export interface TradeOffer {
   items: Array<{ itemId: number; qty: number }>;
@@ -112,7 +117,7 @@ export class TradeService {
       });
 
       if (!item) {
-        throw new BadRequestException('Item not found');
+        throw new ItemNotFoundError(key);
       }
 
       // Check if character has enough items
@@ -220,13 +225,7 @@ export class TradeService {
       }
 
       // Verify both sides have required items and gold
-      await this.verifyTradeRequirements(
-        tx,
-        fromChar.id,
-        offerFrom,
-        toChar.id,
-        offerTo,
-      );
+      this.verifyTradeRequirements(fromChar, offerFrom, toChar, offerTo);
 
       // Execute the trade
       await this.executeTradeSwap(tx, trade, offerFrom, offerTo);
@@ -236,21 +235,18 @@ export class TradeService {
     });
   }
 
-  private async verifyTradeRequirements(
-    tx: Prisma.TransactionClient,
-    fromCharId: number,
+  private verifyTradeRequirements(
+    fromChar: {
+      gold: number;
+      inventory: Array<{ itemId: number; qty: number }>;
+    },
     fromOffer: TradeOffer,
-    toCharId: number,
+    toChar: { gold: number; inventory: Array<{ itemId: number; qty: number }> },
     toOffer: TradeOffer,
   ) {
     // Verify fromChar has required items and gold
-    const fromChar = await tx.character.findUnique({
-      where: { id: fromCharId },
-      include: { inventory: true },
-    });
-
     if (fromChar.gold < fromOffer.gold) {
-      throw new BadRequestException('Insufficient gold in trade offer');
+      throw new InsufficientGoldError();
     }
 
     for (const offerItem of fromOffer.items) {
@@ -259,18 +255,13 @@ export class TradeService {
       );
       const qty = inventory?.qty || 0;
       if (qty < offerItem.qty) {
-        throw new BadRequestException('Insufficient items in trade offer');
+        throw new InsufficientItemsError();
       }
     }
 
     // Verify toChar has required items and gold
-    const toChar = await tx.character.findUnique({
-      where: { id: toCharId },
-      include: { inventory: true },
-    });
-
     if (toChar.gold < toOffer.gold) {
-      throw new BadRequestException('Insufficient gold in trade offer');
+      throw new InsufficientGoldError();
     }
 
     for (const offerItem of toOffer.items) {
@@ -279,7 +270,7 @@ export class TradeService {
       );
       const qty = inventory?.qty || 0;
       if (qty < offerItem.qty) {
-        throw new BadRequestException('Insufficient items in trade offer');
+        throw new InsufficientItemsError();
       }
     }
   }
@@ -412,24 +403,18 @@ export class TradeService {
   }
 
   async cleanupExpiredTrades() {
-    const expiredTrades = await this.prisma.trade.findMany({
+    const result = await this.prisma.trade.updateMany({
       where: {
         status: 'PENDING',
         expiresAt: { lt: new Date() },
       },
+      data: { status: 'EXPIRED' },
     });
 
-    for (const trade of expiredTrades) {
-      await this.prisma.trade.update({
-        where: { id: trade.id },
-        data: { status: 'EXPIRED' },
-      });
+    if (result.count > 0) {
+      this.logger.log(`Cleaned up ${result.count} expired trades`);
     }
 
-    if (expiredTrades.length > 0) {
-      this.logger.log(`Cleaned up ${expiredTrades.length} expired trades`);
-    }
-
-    return expiredTrades.length;
+    return result.count;
   }
 }

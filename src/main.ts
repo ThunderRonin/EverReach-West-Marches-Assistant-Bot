@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { PrismaService } from './db/prisma.service';
+import { DomainErrorFilter } from './core/errors/domain-error.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -10,6 +11,9 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
+
+    // Register global exception filter for domain errors
+    app.useGlobalFilters(new DomainErrorFilter());
 
     // Initialize Prisma
     const prismaService = app.get(PrismaService);

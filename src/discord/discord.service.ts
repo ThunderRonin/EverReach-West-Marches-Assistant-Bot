@@ -15,6 +15,9 @@ export class DiscordService implements OnModuleInit {
     private readonly commandHandler: CommandHandler,
   ) {
     const token = this.configService.get<string>('DISCORD_TOKEN');
+    if (!token) {
+      throw new Error('DISCORD_TOKEN environment variable is required');
+    }
     this.rest = new REST({ version: '10' }).setToken(token);
   }
 
@@ -219,6 +222,12 @@ export class DiscordService implements OnModuleInit {
       ];
 
       this.logger.log('Started refreshing application (/) commands.');
+
+      if (!clientId || !guildId) {
+        throw new Error(
+          'DISCORD_CLIENT_ID and GUILD_ID_DEV environment variables are required',
+        );
+      }
 
       await this.rest.put(Routes.applicationGuildCommands(clientId, guildId), {
         body: commands,

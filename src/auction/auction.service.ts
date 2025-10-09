@@ -1,12 +1,18 @@
-import {
-  Injectable,
-  Logger,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../db/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  ItemNotFoundError,
+  InsufficientItemsError,
+  InsufficientGoldError,
+  AuctionNotFoundError,
+  AuctionNotOpenError,
+  AuctionExpiredError,
+  SelfBidError,
+  BidTooLowError,
+  BidNotHigherError,
+} from '../core/errors/errors';
 
 type AuctionWithRelations = Prisma.AuctionGetPayload<{
   include: {
@@ -55,7 +61,7 @@ export class AuctionService {
       });
 
       if (!item) {
-        throw new BadRequestException('Item not found');
+        throw new ItemNotFoundError(itemKey);
       }
 
       // Verify seller has enough items
@@ -69,7 +75,7 @@ export class AuctionService {
       });
 
       if (!inventory || inventory.qty < qty) {
-        throw new BadRequestException('Insufficient items to auction');
+        throw new InsufficientItemsError();
       }
 
       // Calculate expiry time
@@ -125,27 +131,27 @@ export class AuctionService {
       });
 
       if (!auction) {
-        throw new NotFoundException('Auction not found');
+        throw new AuctionNotFoundError(auctionId);
       }
 
       if (auction.status !== 'OPEN') {
-        throw new BadRequestException('Auction is not open');
+        throw new AuctionNotOpenError(auctionId);
       }
 
       if (new Date() > auction.expiresAt) {
-        throw new BadRequestException('Auction has expired');
+        throw new AuctionExpiredError(auctionId);
       }
 
       if (auction.sellerId === bidderId) {
-        throw new BadRequestException('You cannot bid on your own auction');
+        throw new SelfBidError();
       }
 
       if (amount < auction.minBid) {
-        throw new BadRequestException('Bid must be at least the minimum bid');
+        throw new BidTooLowError();
       }
 
       if (auction.currentBid && amount <= auction.currentBid) {
-        throw new BadRequestException('Bid must be higher than current bid');
+        throw new BidNotHigherError();
       }
 
       // Verify bidder has enough gold
@@ -154,7 +160,7 @@ export class AuctionService {
       });
 
       if (!bidder || bidder.gold < amount) {
-        throw new BadRequestException('Insufficient gold');
+        throw new InsufficientGoldError();
       }
 
       // Update auction

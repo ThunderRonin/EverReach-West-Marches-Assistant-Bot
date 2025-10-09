@@ -102,7 +102,7 @@ export class TradeShowCommand {
         gold: number,
         itemMap: Item[],
       ) => {
-        const parts = [];
+        const parts: string[] = [];
         if (gold > 0) parts.push(`${gold} gold`);
         items.forEach((offerItem) => {
           const item = itemMap.find((i) => i.id === offerItem.itemId);

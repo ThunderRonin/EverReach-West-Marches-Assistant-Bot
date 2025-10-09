@@ -105,7 +105,7 @@ export class TradeAcceptCommand {
         gold: number,
         characterName: string,
       ) => {
-        const parts = [];
+        const parts: string[] = [];
         if (gold > 0) parts.push(`${gold} gold`);
         if (items.length > 0) parts.push(`${items.length} item(s)`);
         return `${characterName}: ${parts.length > 0 ? parts.join(', ') : 'Nothing'}`;

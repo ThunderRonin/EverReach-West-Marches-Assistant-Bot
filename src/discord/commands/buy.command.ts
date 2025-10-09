@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
@@ -9,8 +9,6 @@ import { EconomyService } from '../../economy/economy.service';
 
 @Injectable()
 export class BuyCommand {
-  private readonly logger = new Logger(BuyCommand.name);
-
   constructor(
     private readonly usersService: UsersService,
     private readonly economyService: EconomyService,
@@ -31,72 +29,49 @@ export class BuyCommand {
     );
 
   async execute(interaction: ChatInputCommandInteraction) {
-    try {
-      const key = interaction.options.getString('key', true);
-      const qty = interaction.options.getInteger('qty', true);
-      const discordId = interaction.user.id;
-      const guildId = interaction.guildId;
+    const key = interaction.options.getString('key', true);
+    const qty = interaction.options.getInteger('qty', true);
+    const discordId = interaction.user.id;
+    const guildId = interaction.guildId;
 
-      if (!guildId) {
-        return interaction.reply({
-          content: 'This command can only be used in a server.',
-          ephemeral: true,
-        });
-      }
-
-      const user = await this.usersService.getUserByDiscordId(
-        discordId,
-        guildId,
-      );
-
-      if (!user?.character) {
-        return interaction.reply({
-          content:
-            'You need to register a character first! Use `/register <name>` to get started.',
-          ephemeral: true,
-        });
-      }
-
-      const result = await this.economyService.buyItem(
-        user.character.id,
-        key,
-        qty,
-      );
-
-      const embed = new EmbedBuilder()
-        .setTitle('✅ Purchase Successful')
-        .setColor('#00ff00')
-        .setDescription(
-          `You bought **${qty}x ${result.item.name}** for **${result.totalCost} gold**`,
-        )
-        .addFields(
-          {
-            name: 'Remaining Gold',
-            value: `${result.remainingGold}`,
-            inline: true,
-          },
-          { name: 'Item', value: result.item.name, inline: true },
-        );
-
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    } catch (error) {
-      this.logger.error('Error in buy command:', error);
-
-      let errorMessage =
-        'An error occurred while making your purchase. Please try again.';
-
-      if (error.message.includes('not found')) {
-        errorMessage =
-          'Item not found. Check the shop with `/shop` for available items.';
-      } else if (error.message.includes('Insufficient gold')) {
-        errorMessage =
-          "You don't have enough gold for this purchase. Check your balance with `/inv`.";
-      }
-
+    if (!guildId) {
       return interaction.reply({
-        content: errorMessage,
+        content: 'This command can only be used in a server.',
         ephemeral: true,
       });
     }
+
+    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+
+    if (!user?.character) {
+      return interaction.reply({
+        content:
+          'You need to register a character first! Use `/register <name>` to get started.',
+        ephemeral: true,
+      });
+    }
+
+    const result = await this.economyService.buyItem(
+      user.character.id,
+      key,
+      qty,
+    );
+
+    const embed = new EmbedBuilder()
+      .setTitle('✅ Purchase Successful')
+      .setColor('#00ff00')
+      .setDescription(
+        `You bought **${qty}x ${result.item.name}** for **${result.totalCost} gold**`,
+      )
+      .addFields(
+        {
+          name: 'Remaining Gold',
+          value: `${result.remainingGold}`,
+          inline: true,
+        },
+        { name: 'Item', value: result.item.name, inline: true },
+      );
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 }

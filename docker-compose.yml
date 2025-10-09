@@ -1,23 +1,50 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: everreach-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: everreach
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-everreach_password}
+      POSTGRES_DB: everreach_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - everreach-network
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U everreach"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   everreach-bot:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: everreach-assistant
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - GUILD_ID_DEV=${GUILD_ID_DEV}
       - GUILD_ID_PROD=${GUILD_ID_PROD:-${GUILD_ID_DEV}}
-      - DATABASE_URL=file:/app/data/database.db
-      - EMBEDDING_API_URL=${EMBEDDING_API_URL}
+      - STARTUP_CHANNEL_ID=${STARTUP_CHANNEL_ID}
+      - DATABASE_URL=postgresql://everreach:${POSTGRES_PASSWORD:-everreach_password}@postgres:5432/everreach_db?schema=public
+      - EMBEDDING_API_URL=${EMBEDDING_API_URL:-https://openrouter.ai/api/v1}
       - EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
     volumes:
-      - ./data:/app/data:rw
       - ./logs:/app/logs:rw
     networks:
       - everreach-network
@@ -38,5 +65,5 @@ networks:
     driver: bridge
 
 volumes:
-  database-data:
+  postgres-data:
     driver: local

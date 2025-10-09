@@ -1,5 +1,10 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../db/prisma.service';
+import {
+  ItemNotFoundError,
+  InsufficientGoldError,
+  CharacterNotFoundError,
+} from '../core/errors/errors';
 
 @Injectable()
 export class EconomyService {
@@ -22,7 +27,7 @@ export class EconomyService {
       });
 
       if (!character) {
-        throw new BadRequestException('Character not found');
+        throw new CharacterNotFoundError();
       }
 
       const item = await tx.item.findUnique({
@@ -30,13 +35,13 @@ export class EconomyService {
       });
 
       if (!item) {
-        throw new BadRequestException('Item not found');
+        throw new ItemNotFoundError(itemKey);
       }
 
       const totalCost = item.baseValue * quantity;
 
       if (character.gold < totalCost) {
-        throw new BadRequestException('Insufficient gold');
+        throw new InsufficientGoldError();
       }
 
       // Update character gold

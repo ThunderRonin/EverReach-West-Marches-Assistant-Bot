@@ -34,7 +34,7 @@ export class RegisterCommand {
         name,
       );
 
-      if (user.character) {
+      if (user?.character) {
         if (user.character.name === name) {
           return interaction.reply({
             content: `Welcome back, ${name}! Your character is ready to go.`,

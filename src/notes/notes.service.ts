@@ -9,12 +9,17 @@ interface NoteWithEmbedding {
   createdAt: Date;
 }
 
+interface EmbeddingApiResponse {
+  data: Array<{ embedding: number[] }>;
+}
+
 @Injectable()
 export class NotesService implements OnModuleInit {
   private readonly logger = new Logger(NotesService.name);
   private readonly embeddingDimension: number;
   private readonly embeddingApiUrl?: string;
   private readonly embeddingApiKey?: string;
+  private readonly embeddingModel: string;
   private userNotes: Map<number, NoteWithEmbedding[]> = new Map();
 
   constructor(
@@ -27,6 +32,10 @@ export class NotesService implements OnModuleInit {
     );
     this.embeddingApiUrl = this.configService.get<string>('EMBEDDING_API_URL');
     this.embeddingApiKey = this.configService.get<string>('EMBEDDING_API_KEY');
+    this.embeddingModel = this.configService.get<string>(
+      'EMBEDDING_MODEL',
+      'text-embedding-3-small',
+    );
   }
 
   async onModuleInit() {
@@ -133,7 +142,7 @@ export class NotesService implements OnModuleInit {
     }
 
     try {
-      const response = await fetch(this.embeddingApiUrl, {
+      const response = await fetch(`${this.embeddingApiUrl}/embeddings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +150,7 @@ export class NotesService implements OnModuleInit {
         },
         body: JSON.stringify({
           input: text,
-          model: 'text-embedding-ada-002',
+          model: this.embeddingModel,
         }),
       });
 
@@ -149,7 +158,12 @@ export class NotesService implements OnModuleInit {
         throw new Error(`Embedding API error: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as EmbeddingApiResponse;
+
+      if (!data.data?.[0]?.embedding) {
+        throw new Error('Invalid embedding response format');
+      }
+
       return new Float32Array(data.data[0].embedding);
     } catch (error) {
       this.logger.warn(
