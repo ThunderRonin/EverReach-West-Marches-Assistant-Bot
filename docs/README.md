@@ -29,7 +29,9 @@ Start here to understand the project:
 
 ### 🔄 **For Migration**
 - **[POSTGRES_MIGRATION.md](./POSTGRES_MIGRATION.md)** - PostgreSQL & OpenRouter migration guide
-- **[MIGRATION_COMPLETE.md](./MIGRATION_COMPLETE.md)** - Migration completion summary
+- **[MIGRATION_COMPLETE.md](./MIGRATION_COMPLETE.md)** - PostgreSQL migration summary
+- **[NECORD_MIGRATION_PLAN.md](./NECORD_MIGRATION_PLAN.md)** - Necord framework migration plan
+- **[NECORD_MIGRATION_COMPLETE.md](./NECORD_MIGRATION_COMPLETE.md)** - Necord migration summary
 
 ---
 

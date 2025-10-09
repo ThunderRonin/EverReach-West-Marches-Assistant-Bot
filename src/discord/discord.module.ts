@@ -1,34 +1,30 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { DiscordClient } from './discord.client';
-import { DiscordService } from './discord.service';
-import { CommandHandler } from './commands/command.handler';
+import { NecordModule } from 'necord';
+import { necordConfig } from './necord.config';
+
+// Business modules
 import { UsersModule } from '../users/users.module';
 import { EconomyModule } from '../economy/economy.module';
 import { TradeModule } from '../trade/trade.module';
 import { AuctionModule } from '../auction/auction.module';
 import { NotesModule } from '../notes/notes.module';
 
-// Command imports
-import { RegisterCommand } from './commands/register.command';
-import { InvCommand } from './commands/inv.command';
-import { ShopCommand } from './commands/shop.command';
-import { BuyCommand } from './commands/buy.command';
-import { HistoryCommand } from './commands/history.command';
-import { TradeStartCommand } from './commands/trade-start.command';
-import { TradeAddCommand } from './commands/trade-add.command';
-import { TradeShowCommand } from './commands/trade-show.command';
-import { TradeAcceptCommand } from './commands/trade-accept.command';
-import { AuctionListCommand } from './commands/auction-list.command';
-import { AuctionCreateCommand } from './commands/auction-create.command';
-import { AuctionBidCommand } from './commands/auction-bid.command';
-import { AuctionMyCommand } from './commands/auction-my.command';
-import { NoteAddCommand } from './commands/note-add.command';
-import { NoteSearchCommand } from './commands/note-search.command';
+// Command groups
+import { UserCommands } from './commands/user.commands';
+import { EconomyCommands } from './commands/economy.commands';
+import { TradeCommands } from './commands/trade.commands';
+import { AuctionCommands } from './commands/auction.commands';
+import { NoteCommands } from './commands/note.commands';
+
+// Event listeners
+import { ReadyListener } from './listeners/ready.listener';
+import { ErrorListener } from './listeners/error.listener';
 
 @Module({
   imports: [
     ConfigModule,
+    NecordModule.forRoot(necordConfig()),
     UsersModule,
     EconomyModule,
     TradeModule,
@@ -36,26 +32,15 @@ import { NoteSearchCommand } from './commands/note-search.command';
     NotesModule,
   ],
   providers: [
-    DiscordClient,
-    DiscordService,
-    CommandHandler,
     // Commands
-    RegisterCommand,
-    InvCommand,
-    ShopCommand,
-    BuyCommand,
-    HistoryCommand,
-    TradeStartCommand,
-    TradeAddCommand,
-    TradeShowCommand,
-    TradeAcceptCommand,
-    AuctionListCommand,
-    AuctionCreateCommand,
-    AuctionBidCommand,
-    AuctionMyCommand,
-    NoteAddCommand,
-    NoteSearchCommand,
+    UserCommands,
+    EconomyCommands,
+    TradeCommands,
+    AuctionCommands,
+    NoteCommands,
+    // Listeners
+    ReadyListener,
+    ErrorListener,
   ],
-  exports: [DiscordService, DiscordClient],
 })
 export class DiscordModule {}

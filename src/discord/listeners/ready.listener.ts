@@ -1,41 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  Client,
-  GatewayIntentBits,
-  EmbedBuilder,
-  TextChannel,
-} from 'discord.js';
+import { Context, Once } from 'necord';
+import type { ContextOf } from 'necord';
+import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 
 @Injectable()
-export class DiscordClient extends Client {
-  private readonly logger = new Logger(DiscordClient.name);
+export class ReadyListener {
+  private readonly logger = new Logger(ReadyListener.name);
 
-  constructor() {
-    super({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-      ],
-    });
+  @Once('ready')
+  onReady(@Context() [client]: ContextOf<'ready'>) {
+    this.logger.log(`✅ Discord bot logged in as ${client.user.tag}!`);
 
-    this.once('ready', () => {
-      this.logger.log(`Discord bot logged in as ${this.user?.tag}!`);
-
-      // Send startup notification (non-blocking)
-      void this.sendStartupNotification();
-    });
-
-    this.on('error', (error) => {
-      this.logger.error('Discord client error:', error);
-    });
+    // Send startup notification
+    void this.sendStartupNotification(client);
   }
 
-  private async sendStartupNotification() {
+  private async sendStartupNotification(client: Client) {
     try {
       const channelId = process.env.STARTUP_CHANNEL_ID;
 
-      // If no channel configured, just log
       if (!channelId) {
         this.logger.log(
           '✅ Bot is ready! (Set STARTUP_CHANNEL_ID to send startup message)',
@@ -43,7 +26,7 @@ export class DiscordClient extends Client {
         return;
       }
 
-      const channel = await this.channels.fetch(channelId);
+      const channel = await client.channels.fetch(channelId);
 
       if (!channel || !channel.isTextBased()) {
         this.logger.warn(
@@ -73,7 +56,6 @@ export class DiscordClient extends Client {
       this.logger.log(`✅ Startup notification sent to channel ${channelId}`);
     } catch (error) {
       this.logger.error('Failed to send startup notification:', error);
-      // Don't throw - this is non-critical
     }
   }
 }
