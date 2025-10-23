@@ -21,6 +21,7 @@ import { AdminCommands } from './commands/admin.commands';
 // Event listeners
 import { ReadyListener } from './listeners/ready.listener';
 import { ErrorListener } from './listeners/error.listener';
+import { ClientProvider } from './client.provider';
 import { PermissionsModule } from 'src/permissions/permissions.module';
 
 @Module({
@@ -37,6 +38,8 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
     PermissionsModule
   ],
   providers: [
+    // Client provider (must be before other listeners/commands)
+    ClientProvider,
     // Commands
     UserCommands,
     EconomyCommands,

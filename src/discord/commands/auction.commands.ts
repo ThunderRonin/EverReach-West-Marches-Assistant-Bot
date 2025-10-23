@@ -1,4 +1,5 @@
-import { Injectable, UseGuards } from '@nestjs/common';
+import { Injectable, UseGuards, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import {
   Context,
   createCommandGroupDecorator,
@@ -8,12 +9,13 @@ import {
   IntegerOption,
 } from 'necord';
 import { IsString, IsInt, Min, Max, Length } from 'class-validator';
-import { CommandInteraction, EmbedBuilder } from 'discord.js';
+import { CommandInteraction, EmbedBuilder, Client } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { AuctionService } from '../../auction/auction.service';
 import { AUCTION_CONFIG } from '../../config/game.constants';
 import { GuildOnlyGuard } from '../guards/guild-only.guard';
 import { CharacterExistsGuard } from '../guards/character-exists.guard';
+import { ClientProvider } from '../client.provider';
 
 const AuctionCommand = createCommandGroupDecorator({
   name: 'auction',
@@ -87,9 +89,12 @@ export class AuctionBidDto {
 @Injectable()
 @AuctionCommand()
 export class AuctionCommands {
+  private readonly logger = new Logger(AuctionCommands.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly auctionService: AuctionService,
+    private readonly clientProvider: ClientProvider,
   ) {}
 
   @Subcommand({
@@ -142,10 +147,24 @@ export class AuctionCommands {
     const discordId = interaction.user.id;
     const guildId = interaction.guildId!;
 
-    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+    // Get character from guard attachment first, fallback to database query
+    let character = (interaction as any).character;
+    
+    if (!character) {
+      const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+      character = user?.character;
+    }
+
+    if (!character) {
+      const embed = new EmbedBuilder()
+        .setTitle('❌ Character Not Found')
+        .setColor('#ff0000')
+        .setDescription('You need to register a character first! Use `/register <name>` to get started.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
 
     const auction = await this.auctionService.createAuction(
-      user!.character!.id,
+      character.id,
       key,
       qty,
       minBid,
@@ -170,7 +189,19 @@ export class AuctionCommands {
       )
       .setFooter({ text: 'Use /auction bid <id> <amount> to place a bid' });
 
-    return interaction.reply({ embeds: [embed] });
+    const reply = await interaction.reply({ embeds: [embed], fetchReply: true });
+    
+    // Store message ID for later updates
+    if (reply && reply.id && interaction.channelId) {
+      await this.auctionService.storeMessageId(
+        auction.id,
+        reply.id,
+        interaction.channelId,
+        interaction.guildId!,
+      );
+    }
+
+    return reply;
   }
 
   @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
@@ -185,9 +216,23 @@ export class AuctionCommands {
     const discordId = interaction.user.id;
     const guildId = interaction.guildId!;
 
-    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+    // Get character from guard attachment first, fallback to database query
+    let character = (interaction as any).character;
+    
+    if (!character) {
+      const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+      character = user?.character;
+    }
 
-    await this.auctionService.placeBid(auctionId, user!.character!.id, amount);
+    if (!character) {
+      const embed = new EmbedBuilder()
+        .setTitle('❌ Character Not Found')
+        .setColor('#ff0000')
+        .setDescription('You need to register a character first! Use `/register <name>` to get started.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    const updatedAuction = await this.auctionService.placeBid(auctionId, character.id, amount);
 
     const embed = new EmbedBuilder()
       .setTitle('💰 Bid Placed')
@@ -198,13 +243,25 @@ export class AuctionCommands {
       .addFields(
         { name: 'Auction ID', value: auctionId.toString(), inline: true },
         { name: 'Bid Amount', value: `${amount} gold`, inline: true },
-        { name: 'Bidder', value: user!.character!.name, inline: true },
+        { name: 'Bidder', value: character.name, inline: true },
       )
       .setFooter({
         text: 'Check /auction list to see current auction status',
       });
 
-    return interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+
+    // Update the original auction list message if it exists
+    if (updatedAuction && interaction.client) {
+      const auctionEmbed = this.buildAuctionEmbed(updatedAuction);
+      await this.auctionService.updateAuctionMessage(
+        auctionId,
+        interaction.client,
+        auctionEmbed,
+      );
+    }
+
+    return;
   }
 
   @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
@@ -216,14 +273,28 @@ export class AuctionCommands {
     const discordId = interaction.user.id;
     const guildId = interaction.guildId!;
 
-    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+    // Get character from guard attachment first, fallback to database query
+    let character = (interaction as any).character;
+    
+    if (!character) {
+      const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+      character = user?.character;
+    }
+
+    if (!character) {
+      const embed = new EmbedBuilder()
+        .setTitle('❌ Character Not Found')
+        .setColor('#ff0000')
+        .setDescription('You need to register a character first! Use `/register <name>` to get started.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
 
     const { createdAuctions, bids } = await this.auctionService.getUserAuctions(
-      user!.character!.id,
+      character.id,
     );
 
     const embed = new EmbedBuilder()
-      .setTitle(`🏺 ${user!.character!.name}'s Auctions`)
+      .setTitle(`🏺 ${character.name}'s Auctions`)
       .setColor('#ff9900');
 
     if (createdAuctions.length === 0) {
@@ -276,7 +347,7 @@ export class AuctionCommands {
             bid.auction.status === 'OPEN'
               ? '🟢 Open'
               : bid.auction.status === 'SOLD'
-                ? bid.auction.currentBidderId === user!.character!.id
+                ? bid.auction.currentBidderId === character.id
                   ? '✅ Won'
                   : '❌ Lost'
                 : '⏰ Expired';
@@ -296,5 +367,123 @@ export class AuctionCommands {
     }
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  /**
+   * Build a Discord embed for an auction listing
+   */
+  private buildAuctionEmbed(auction: any): EmbedBuilder {
+    const currentBid = auction.currentBid
+      ? `${auction.currentBid} gold`
+      : 'No bids yet';
+    const bidder = auction.bidder ? auction.bidder.name : 'None';
+    const timeLeft = `<t:${Math.floor(auction.expiresAt.getTime() / 1000)}:R>`;
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🏺 Auction #${auction.id}`)
+      .setColor('#ff9900')
+      .setDescription(`${auction.qty}x ${auction.item.name}`)
+      .addFields(
+        { name: 'Seller', value: auction.seller.name, inline: true },
+        { name: 'Minimum Bid', value: `${auction.minBid} gold`, inline: true },
+        { name: 'Current Bid', value: currentBid, inline: true },
+        { name: 'Current Bidder', value: bidder, inline: true },
+        { name: 'Time Remaining', value: timeLeft, inline: true },
+        { name: 'Status', value: auction.status, inline: true },
+      )
+      .setFooter({ text: `Use /auction bid ${auction.id} <amount> to bid` });
+
+    return embed;
+  }
+
+  /**
+   * Event handler for auction.sold - updates Discord message when auction is won
+   */
+  @OnEvent('auction.sold')
+  async onAuctionSold(payload: { auction: any }) {
+    try {
+      const { auction } = payload;
+
+      // Build winner mention
+      const winnerMention = auction.bidder?.user?.discordId
+        ? `<@${auction.bidder.user.discordId}>`
+        : auction.bidder?.name || 'Unknown';
+
+      // Build settlement embed
+      const embed = new EmbedBuilder()
+        .setTitle(`✅ Auction #${auction.id} - SOLD`)
+        .setColor('#00ff00')
+        .setDescription(`${auction.qty}x ${auction.item.name}`)
+        .addFields(
+          { name: 'Item', value: auction.item.name, inline: true },
+          { name: 'Seller', value: auction.seller.name, inline: true },
+          { name: 'Winner', value: winnerMention, inline: true },
+          {
+            name: 'Final Price',
+            value: `${auction.currentBid} gold`,
+            inline: true,
+          },
+          { name: 'Quantity', value: auction.qty.toString(), inline: true },
+          { name: 'Status', value: '✅ Sold', inline: true },
+        )
+        .setFooter({ text: 'Auction has been settled' });
+
+      // Update the Discord message if we have the client
+      const client = this.clientProvider.getClient();
+      if (client) {
+        await this.auctionService.updateAuctionMessage(
+          auction.id,
+          client,
+          embed,
+        );
+      }
+
+      this.logger.log(
+        `Auction #${auction.id} sold to ${auction.bidder?.name} for ${auction.currentBid} gold`,
+      );
+    } catch (error) {
+      this.logger.error('Error in auction.sold event handler:', error);
+    }
+  }
+
+  /**
+   * Event handler for auction.expired - updates Discord message when auction expires with no bids
+   */
+  @OnEvent('auction.expired')
+  async onAuctionExpired(payload: { auction: any }) {
+    try {
+      const { auction } = payload;
+
+      // Build expiration embed
+      const embed = new EmbedBuilder()
+        .setTitle(`⏰ Auction #${auction.id} - EXPIRED`)
+        .setColor('#ff9900')
+        .setDescription(`${auction.qty}x ${auction.item.name}`)
+        .addFields(
+          { name: 'Item', value: auction.item.name, inline: true },
+          { name: 'Seller', value: auction.seller.name, inline: true },
+          { name: 'Min Bid Required', value: `${auction.minBid} gold`, inline: true },
+          { name: 'Bids Received', value: '0 (No bids)', inline: true },
+          { name: 'Result', value: '❌ Items returned to seller', inline: true },
+          { name: 'Status', value: 'Expired', inline: true },
+        )
+        .setFooter({ text: 'Auction expired with no bids - items refunded' });
+
+      // Update the Discord message if we have the client
+      const client = this.clientProvider.getClient();
+      if (client) {
+        await this.auctionService.updateAuctionMessage(
+          auction.id,
+          client,
+          embed,
+        );
+      }
+
+      this.logger.log(
+        `Auction #${auction.id} expired with no bids - items refunded to ${auction.seller.name}`,
+      );
+    } catch (error) {
+      this.logger.error('Error in auction.expired event handler:', error);
+    }
   }
 }

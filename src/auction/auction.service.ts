@@ -275,31 +275,57 @@ export class AuctionService {
   }
 
   private async settleAuction(auction: AuctionWithRelations) {
-    await this.prisma.$transaction(async (tx) => {
+    const settledAuction = await this.prisma.$transaction(async (tx) => {
       // Re-check auction status to avoid race conditions
       const currentAuction = await tx.auction.findUnique({
         where: { id: auction.id },
+        include: {
+          item: true,
+          seller: true,
+          bidder: {
+            include: {
+              user: true,
+            },
+          },
+        },
       });
 
       if (!currentAuction || currentAuction.status !== 'OPEN') {
         this.logger.debug(
           `Auction ${auction.id} already settled (status: ${currentAuction?.status})`,
         );
-        return; // Already processed
+        return null; // Already processed
       }
 
       if (currentAuction.currentBidderId) {
         // Auction was sold
         this.logger.log(
-          `Settling auction ${auction.id}: sold for ${currentAuction.currentBid} gold`,
+          `Settling auction ${currentAuction.id}: sold for ${currentAuction.currentBid} gold`,
         );
-        await this.executeSale(tx, auction);
+        await this.executeSale(tx, currentAuction);
       } else {
         // Auction expired with no bids
-        this.logger.log(`Settling auction ${auction.id}: expired with no bids`);
-        await this.refundSeller(tx, auction);
+        this.logger.log(
+          `Settling auction ${currentAuction.id}: expired with no bids`,
+        );
+        await this.refundSeller(tx, currentAuction);
       }
+
+      return currentAuction;
     });
+
+    // Emit events outside transaction so they have access to fresh data
+    if (settledAuction) {
+      if (settledAuction.currentBidderId) {
+        this.eventEmitter.emit('auction.sold', {
+          auction: settledAuction,
+        });
+      } else {
+        this.eventEmitter.emit('auction.expired', {
+          auction: settledAuction,
+        });
+      }
+    }
   }
 
   private async executeSale(
@@ -426,5 +452,101 @@ export class AuctionService {
     this.eventEmitter.emit('auction.expired', {
       auction,
     });
+  }
+
+  /**
+   * Store a Discord message ID for an auction
+   * Used to later update the message when auction state changes
+   */
+  async storeMessageId(
+    auctionId: number,
+    messageId: string,
+    channelId: string,
+    guildId: string,
+  ) {
+    try {
+      return await this.prisma.auctionMessage.create({
+        data: {
+          auctionId,
+          messageId,
+          channelId,
+          guildId,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to store message ID for auction ${auctionId}:`,
+        error,
+      );
+      // Don't throw - message storage is non-critical
+    }
+  }
+
+  /**
+   * Update a stored auction message in Discord
+   * Used to update the embed when bid is placed or auction settles
+   */
+  async updateAuctionMessage(
+    auctionId: number,
+    client: any, // Discord.js Client
+    embed: any, // EmbedBuilder
+  ) {
+    try {
+      const auctionMessage = await this.prisma.auctionMessage.findUnique({
+        where: { auctionId },
+      });
+
+      if (!auctionMessage) {
+        this.logger.debug(
+          `No stored message ID for auction ${auctionId} - skipping update`,
+        );
+        return;
+      }
+
+      // Fetch channel and message from Discord
+      const channel = await client.channels.fetch(auctionMessage.channelId);
+      if (!channel || !channel.isTextBased()) {
+        this.logger.warn(
+          `Channel ${auctionMessage.channelId} not found or not text-based`,
+        );
+        return;
+      }
+
+      const message = await channel.messages.fetch(auctionMessage.messageId);
+      if (!message) {
+        this.logger.warn(
+          `Message ${auctionMessage.messageId} not found in channel`,
+        );
+        return;
+      }
+
+      // Update the message
+      await message.edit({ embeds: [embed] });
+      this.logger.log(
+        `Updated auction message ${auctionMessage.messageId} for auction ${auctionId}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to update auction message for auction ${auctionId}:`,
+        error,
+      );
+      // Don't throw - message update is non-critical
+    }
+  }
+
+  /**
+   * Delete stored message reference when auction is cleaned up
+   */
+  async deleteAuctionMessage(auctionId: number) {
+    try {
+      await this.prisma.auctionMessage.delete({
+        where: { auctionId },
+      });
+    } catch (error) {
+      this.logger.debug(
+        `No message record to delete for auction ${auctionId}`,
+      );
+      // Silently fail - might not exist
+    }
   }
 }

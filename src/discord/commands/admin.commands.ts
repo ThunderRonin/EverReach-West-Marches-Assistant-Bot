@@ -318,45 +318,66 @@ export class AdminCommands {
         return interaction.reply({ embeds: [embed], ephemeral: true });
       }
 
+      // Defer the interaction to prevent timeout (member fetch takes time)
+      this.logger.log('[dm-list] Deferring interaction response');
+      await interaction.deferReply({ ephemeral: true });
+      this.logger.log('[dm-list] Interaction deferred');
+
       const guild = interaction.guild;
       this.logger.log(`[dm-list] Fetching members from guild ${interaction.guildId}`);
-      const members = await guild.members.fetch();
-      this.logger.log(`[dm-list] Fetched ${members.size} members`);
       
-      // Find members with roles that contain "master" or "dm" (case-insensitive)
-      const dmMembers = members.filter((member) =>
-        member.roles.cache.some(
-          (role) =>
-            role.name.toLowerCase().includes('dungeon') ||
-            role.name.toLowerCase().includes('master') ||
-            role.name.toLowerCase() === 'dm',
-        ),
-      );
-
-      this.logger.log(`[dm-list] Found ${dmMembers.size} members with DM role`);
-
-      const embed = new EmbedBuilder()
-        .setTitle('👑 Dungeon Masters')
-        .setColor('#9d4edd')
-        .setDescription(`Total DMs: ${dmMembers.size}`);
-
-      if (dmMembers.size === 0) {
-        embed.setDescription(
-          'No members with Dungeon Master role found. Ask an admin to create the role and assign it to your DMs!',
+      try {
+        // Fetch members with timeout
+        const members = await Promise.race([
+          guild.members.fetch(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Member fetch timeout after 10 seconds')), 10000)
+          ),
+        ]);
+        this.logger.log(`[dm-list] Fetched ${members.size} members`);
+        
+        // Find members with roles that contain "master" or "dm" (case-insensitive)
+        const dmMembers = members.filter((member) =>
+          member.roles.cache.some(
+            (role) =>
+              role.name.toLowerCase().includes('dungeon') ||
+              role.name.toLowerCase().includes('master') ||
+              role.name.toLowerCase() === 'dm',
+          ),
         );
-      } else {
-        const dmList = dmMembers
-          .map((member) => `**${member.user.username}** - ${member.user.id}`)
-          .join('\n');
 
-        embed.addFields({
-          name: 'Members',
-          value: dmList,
-        });
+        this.logger.log(`[dm-list] Found ${dmMembers.size} members with DM role`);
+
+        const embed = new EmbedBuilder()
+          .setTitle('👑 Dungeon Masters')
+          .setColor('#9d4edd')
+          .setDescription(`Total DMs: ${dmMembers.size}`);
+
+        if (dmMembers.size === 0) {
+          embed.setDescription(
+            'No members with Dungeon Master role found. Ask an admin to create the role and assign it to your DMs!',
+          );
+        } else {
+          const dmList = dmMembers
+            .map((member) => `**${member.user.username}** - ${member.user.id}`)
+            .join('\n');
+
+          embed.addFields({
+            name: 'Members',
+            value: dmList,
+          });
+        }
+
+        this.logger.log('[dm-list] About to send reply');
+        return interaction.editReply({ embeds: [embed] });
+      } catch (fetchError) {
+        this.logger.error('[dm-list] Member fetch failed:', fetchError);
+        const embed = new EmbedBuilder()
+          .setTitle('❌ Error')
+          .setColor('#ff0000')
+          .setDescription(`Failed to fetch members: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}. Make sure the bot has "Read Members" permission.`);
+        return interaction.editReply({ embeds: [embed] });
       }
-
-      this.logger.log('[dm-list] About to send reply');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
     } catch (error) {
       this.logger.error('[dm-list] Caught error:', error);
       const embed = new EmbedBuilder()
@@ -367,7 +388,12 @@ export class AdminCommands {
         );
       try {
         this.logger.log('[dm-list] Sending error response');
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        // Check if interaction was deferred/replied
+        if (interaction.deferred || interaction.replied) {
+          return interaction.editReply({ embeds: [embed] });
+        } else {
+          return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
       } catch (replyError) {
         this.logger.error('[dm-list] Failed to send error response:', replyError);
         throw replyError;

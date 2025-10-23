@@ -95,6 +95,7 @@ model Auction {
   item    Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
   bidder  Character? @relation("AuctionBidder", fields: [currentBidderId], references: [id])
   bids    Bid[]
+  message AuctionMessage?
 
   // Indexes for finding open/expired auctions and user auctions
   @@index([status, expiresAt])
@@ -110,6 +111,19 @@ model Bid {
   createdAt DateTime @default(now())
   auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
   bidder    Character @relation(fields: [bidderId], references: [id], onDelete: Cascade)
+}
+
+model AuctionMessage {
+  id        Int      @id @default(autoincrement())
+  auctionId Int      @unique
+  messageId String
+  channelId String
+  guildId   String
+  createdAt DateTime @default(now())
+  auction   Auction  @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  // Index for finding messages to update by guild/channel
+  @@index([guildId, channelId])
 }
 
 model Note {

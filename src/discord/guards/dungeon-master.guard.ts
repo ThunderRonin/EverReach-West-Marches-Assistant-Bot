@@ -27,14 +27,9 @@ export class DungeonMasterGuard implements CanActivate {
       
       const interaction = request as CommandInteraction;
 
-      // Verify it's a Discord interaction
-      if (!interaction) {
-        this.logger.warn('[DungeonMasterGuard] No interaction found - skipping guard');
-        return true;
-      }
-
-      if (typeof interaction.reply !== 'function') {
-        this.logger.warn('[DungeonMasterGuard] No reply function - skipping guard');
+      // Verify we have an interaction
+      if (!interaction || !interaction.user) {
+        this.logger.warn('[DungeonMasterGuard] No interaction or user found - skipping guard');
         return true;
       }
 
@@ -54,22 +49,26 @@ export class DungeonMasterGuard implements CanActivate {
           : ' in DM';
         this.logger.warn(`[DungeonMasterGuard] Unauthorized admin command attempt by ${userId}${guildInfo}`);
 
-        // Send user-friendly error response
-        const dmRoleName = this.permissionsService.getDMRoleName();
-        const embed = new EmbedBuilder()
-          .setTitle('❌ Admin Access Denied')
-          .setColor('#ff0000')
-          .setDescription(
-            interaction.guildId
-              ? `You need the **${dmRoleName}** role to use this command in this server.`
-              : `Only the bot owner can use this command in DMs.`,
-          );
+        // Send user-friendly error response if we can
+        if (typeof interaction.reply === 'function') {
+          const dmRoleName = this.permissionsService.getDMRoleName();
+          const embed = new EmbedBuilder()
+            .setTitle('❌ Admin Access Denied')
+            .setColor('#ff0000')
+            .setDescription(
+              interaction.guildId
+                ? `You need the **${dmRoleName}** role to use this command in this server.`
+                : `Only the bot owner can use this command in DMs.`,
+            );
 
-        try {
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          this.logger.log('[DungeonMasterGuard] Permission denied message sent');
-        } catch (error) {
-          this.logger.error('[DungeonMasterGuard] Failed to send permission denied message:', error);
+          try {
+            await interaction.reply({ embeds: [embed], ephemeral: true });
+            this.logger.log('[DungeonMasterGuard] Permission denied message sent');
+          } catch (error) {
+            this.logger.error('[DungeonMasterGuard] Failed to send permission denied message:', error);
+          }
+        } else {
+          this.logger.warn('[DungeonMasterGuard] Cannot send reply - interaction.reply not available');
         }
 
         return false;
