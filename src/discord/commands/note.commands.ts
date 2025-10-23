@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseGuards } from '@nestjs/common';
 import {
   Context,
   createCommandGroupDecorator,
@@ -6,9 +6,13 @@ import {
   Options,
   StringOption,
 } from 'necord';
+import { IsString, Length, MaxLength } from 'class-validator';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { NotesService } from '../../notes/notes.service';
+import { NOTES_CONFIG } from '../../config/game.constants';
+import { GuildOnlyGuard } from '../guards/guild-only.guard';
+import { CharacterExistsGuard } from '../guards/character-exists.guard';
 
 const NoteCommand = createCommandGroupDecorator({
   name: 'note',
@@ -21,6 +25,8 @@ export class NoteAddDto {
     description: 'Note text',
     required: true,
   })
+  @IsString()
+  @Length(NOTES_CONFIG.MIN_NOTE_LENGTH, NOTES_CONFIG.MAX_NOTE_LENGTH)
   text: string;
 }
 
@@ -30,6 +36,8 @@ export class NoteSearchDto {
     description: 'Search query',
     required: true,
   })
+  @IsString()
+  @MaxLength(500)
   query: string;
 }
 
@@ -41,6 +49,7 @@ export class NoteCommands {
     private readonly notesService: NotesService,
   ) {}
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'add',
     description: 'Add a personal note',
@@ -50,14 +59,7 @@ export class NoteCommands {
     @Options() { text }: NoteAddDto,
   ) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     if (text.length > 1000) {
       return interaction.reply({
@@ -68,15 +70,7 @@ export class NoteCommands {
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
-    const note = await this.notesService.addNote(user.id, text);
+    const note = await this.notesService.addNote(user!.id, text);
 
     const embed = new EmbedBuilder()
       .setTitle('📝 Note Added')
@@ -99,6 +93,7 @@ export class NoteCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'search',
     description: 'Search your notes',
@@ -108,26 +103,11 @@ export class NoteCommands {
     @Options() { query }: NoteSearchDto,
   ) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
-    const results = await this.notesService.searchNotes(user.id, query, 5);
+    const results = await this.notesService.searchNotes(user!.id, query, 5);
 
     const embed = new EmbedBuilder()
       .setTitle(`🔍 Search Results for "${query}"`)

@@ -1,8 +1,11 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { PrismaService } from './db/prisma.service';
-import { DomainErrorFilter } from './core/errors/domain-error.filter';
+import {
+  DomainErrorFilter,
+  GlobalExceptionFilter,
+} from './core/errors/domain-error.filter';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -12,8 +15,23 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
 
-    // Register global exception filter for domain errors
-    app.useGlobalFilters(new DomainErrorFilter());
+    // Add global validation pipe for class-validator
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true, // Strip properties not in DTOs
+        forbidNonWhitelisted: true, // Throw error if non-whitelisted properties present
+        transform: true, // Automatically transform payloads to DTO instances
+        transformOptions: {
+          enableImplicitConversion: true, // Convert primitives to match types
+        },
+      }),
+    );
+
+    // Register global exception filters (order matters - more specific first)
+    app.useGlobalFilters(
+      new DomainErrorFilter(),
+      new GlobalExceptionFilter(),
+    );
 
     // Initialize Prisma
     const prismaService = app.get(PrismaService);

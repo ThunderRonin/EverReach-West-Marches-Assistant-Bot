@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../db/prisma.service';
+import { CHARACTER_CONFIG } from '../config/game.constants';
 
 @Injectable()
 export class UsersService {
@@ -46,7 +47,7 @@ export class UsersService {
           data: {
             userId: user.id,
             name: characterName,
-            gold: 100, // Starting gold
+            gold: CHARACTER_CONFIG.STARTING_GOLD,
           },
         });
 

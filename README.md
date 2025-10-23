@@ -2,7 +2,22 @@
 
 A production-ready Discord bot built with NestJS and TypeScript for managing a West Marches D&D group (≤10 users). Features character management, economy system, trading, auctions, and personal notes with vector search.
 
-## Features
+## 🎯 Current Status
+
+**Build**: ✅ Clean (2.93s, zero errors)  
+**Battle Plan**: ✅ 60% Complete (37/63 tasks)
+**Authorization**: ✅ Guard-based access control
+**Validation**: ✅ Zod runtime validation for JSON payloads
+**Database**: ✅ 10 performance indexes live
+
+**Implemented**:
+- ✅ Phase 1-5: Bug fixes, configuration, validation, error handling, database optimization
+- ✅ Phase 6: Guards & authorization on all sensitive commands
+- ✅ Phase 7: Zod runtime validation for JSON payloads (trades, transactions)
+
+**Documentation**: See [docs/README.md](./docs/README.md) for detailed status and [docs/OFFICIAL_PLAN_PROGRESS.md](./docs/OFFICIAL_PLAN_PROGRESS.md) for implementation details.
+
+---
 
 ### Core Economy
 - **Character Registration**: `/register <name>` - Create and manage characters

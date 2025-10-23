@@ -1,36 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseGuards } from '@nestjs/common';
 import { Context, SlashCommand, Options, StringOption } from 'necord';
+import { IsString, Length } from 'class-validator';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { EconomyService } from '../../economy/economy.service';
-
-// Transaction log payload types
-interface BuyPayload {
-  quantity: number;
-  itemName: string;
-  totalCost: number;
-  itemId: number;
-  itemKey: string;
-}
-
-interface TradePayload {
-  partnerCharId: number;
-}
-
-interface AuctionSalePayload {
-  qty: number;
-  salePrice: number;
-}
-
-interface AuctionRefundPayload {
-  reason: string;
-}
-
-type TxLogPayload =
-  | BuyPayload
-  | TradePayload
-  | AuctionSalePayload
-  | AuctionRefundPayload;
+import { CHARACTER_CONFIG } from '../../config/game.constants';
+import { GuildOnlyGuard } from '../guards/guild-only.guard';
+import { CharacterExistsGuard } from '../guards/character-exists.guard';
+import { TxLogPayloadSchema, type TxLogPayload } from '../../config/validation.schemas';
 
 export class RegisterDto {
   @StringOption({
@@ -38,6 +15,11 @@ export class RegisterDto {
     description: 'Character name',
     required: true,
   })
+  @IsString()
+  @Length(
+    CHARACTER_CONFIG.MIN_NAME_LENGTH,
+    CHARACTER_CONFIG.MAX_NAME_LENGTH,
+  )
   name: string;
 }
 
@@ -92,40 +74,26 @@ export class UserCommands {
     });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @SlashCommand({
     name: 'inv',
     description: 'View your inventory',
   })
   async onInventory(@Context() [interaction]: [CommandInteraction]) {
-    const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
-
-    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
-
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
+    const user = await this.usersService.getUserByDiscordId(
+      interaction.user.id,
+      interaction.guildId!,
+    );
 
     const inventory = await this.economyService.getCharacterInventory(
-      user.character.id,
+      user!.character!.id,
     );
 
     const embed = new EmbedBuilder()
-      .setTitle(`${user.character.name}'s Inventory`)
+      .setTitle(`${user!.character!.name}'s Inventory`)
       .setColor('#00ff00')
       .addFields(
-        { name: 'Gold', value: `${user.character.gold}`, inline: true },
+        { name: 'Gold', value: `${user!.character!.gold}`, inline: true },
         { name: 'Items', value: inventory.length.toString(), inline: true },
       );
 
@@ -144,37 +112,23 @@ export class UserCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @SlashCommand({
     name: 'history',
     description: 'View your transaction history',
   })
   async onHistory(@Context() [interaction]: [CommandInteraction]) {
-    const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
-
-    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
-
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
+    const user = await this.usersService.getUserByDiscordId(
+      interaction.user.id,
+      interaction.guildId!,
+    );
 
     const transactions = await this.economyService.getTransactionHistory(
-      user.character.id,
+      user!.character!.id,
     );
 
     const embed = new EmbedBuilder()
-      .setTitle(`${user.character.name}'s Transaction History`)
+      .setTitle(`${user!.character!.name}'s Transaction History`)
       .setColor('#ff9900')
       .setDescription('Your last 10 transactions:');
 
@@ -186,7 +140,7 @@ export class UserCommands {
       const transactionList = transactions
         .map((tx) => {
           const date = new Date(tx.createdAt).toLocaleDateString();
-          const payload = JSON.parse(tx.payload) as TxLogPayload;
+          const payload = TxLogPayloadSchema.parse(JSON.parse(tx.payload));
 
           switch (tx.type) {
             case 'BUY':

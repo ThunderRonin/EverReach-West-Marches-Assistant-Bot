@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseGuards } from '@nestjs/common';
 import {
   Context,
   createCommandGroupDecorator,
@@ -7,9 +7,13 @@ import {
   StringOption,
   IntegerOption,
 } from 'necord';
+import { IsString, IsInt, Min, Max, Length } from 'class-validator';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { AuctionService } from '../../auction/auction.service';
+import { AUCTION_CONFIG } from '../../config/game.constants';
+import { GuildOnlyGuard } from '../guards/guild-only.guard';
+import { CharacterExistsGuard } from '../guards/character-exists.guard';
 
 const AuctionCommand = createCommandGroupDecorator({
   name: 'auction',
@@ -22,6 +26,8 @@ export class AuctionCreateDto {
     description: 'Item key',
     required: true,
   })
+  @IsString()
+  @Length(1, 50)
   key: string;
 
   @IntegerOption({
@@ -30,6 +36,8 @@ export class AuctionCreateDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(1)
   qty: number;
 
   @IntegerOption({
@@ -38,6 +46,8 @@ export class AuctionCreateDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(1)
   minBid: number;
 
   @IntegerOption({
@@ -46,6 +56,9 @@ export class AuctionCreateDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(AUCTION_CONFIG.MIN_DURATION_MINUTES)
+  @Max(AUCTION_CONFIG.MAX_DURATION_MINUTES)
   minutes: number;
 }
 
@@ -56,6 +69,8 @@ export class AuctionBidDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(1)
   auctionId: number;
 
   @IntegerOption({
@@ -64,6 +79,8 @@ export class AuctionBidDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(1)
   amount: number;
 }
 
@@ -113,6 +130,7 @@ export class AuctionCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'create',
     description: 'Create a new auction',
@@ -122,27 +140,12 @@ export class AuctionCommands {
     @Options() { key, qty, minBid, minutes }: AuctionCreateDto,
   ) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
     const auction = await this.auctionService.createAuction(
-      user.character.id,
+      user!.character!.id,
       key,
       qty,
       minBid,
@@ -170,6 +173,7 @@ export class AuctionCommands {
     return interaction.reply({ embeds: [embed] });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'bid',
     description: 'Place a bid on an auction',
@@ -179,26 +183,11 @@ export class AuctionCommands {
     @Options() { auctionId, amount }: AuctionBidDto,
   ) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
-    await this.auctionService.placeBid(auctionId, user.character.id, amount);
+    await this.auctionService.placeBid(auctionId, user!.character!.id, amount);
 
     const embed = new EmbedBuilder()
       .setTitle('💰 Bid Placed')
@@ -209,7 +198,7 @@ export class AuctionCommands {
       .addFields(
         { name: 'Auction ID', value: auctionId.toString(), inline: true },
         { name: 'Bid Amount', value: `${amount} gold`, inline: true },
-        { name: 'Bidder', value: user.character.name, inline: true },
+        { name: 'Bidder', value: user!.character!.name, inline: true },
       )
       .setFooter({
         text: 'Check /auction list to see current auction status',
@@ -218,37 +207,23 @@ export class AuctionCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'my',
     description: 'View your auctions and bids',
   })
   async onAuctionMy(@Context() [interaction]: [CommandInteraction]) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
     const { createdAuctions, bids } = await this.auctionService.getUserAuctions(
-      user.character.id,
+      user!.character!.id,
     );
 
     const embed = new EmbedBuilder()
-      .setTitle(`🏺 ${user.character.name}'s Auctions`)
+      .setTitle(`🏺 ${user!.character!.name}'s Auctions`)
       .setColor('#ff9900');
 
     if (createdAuctions.length === 0) {
@@ -301,7 +276,7 @@ export class AuctionCommands {
             bid.auction.status === 'OPEN'
               ? '🟢 Open'
               : bid.auction.status === 'SOLD'
-                ? bid.auction.currentBidderId === user.character?.id
+                ? bid.auction.currentBidderId === user!.character!.id
                   ? '✅ Won'
                   : '❌ Lost'
                 : '⏰ Expired';

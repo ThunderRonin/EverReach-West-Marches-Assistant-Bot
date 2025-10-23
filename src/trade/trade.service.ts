@@ -11,45 +11,59 @@ import {
   InsufficientItemsError,
   ItemNotFoundError,
 } from '../core/errors/errors';
-
-export interface TradeOffer {
-  items: Array<{ itemId: number; qty: number }>;
-  gold: number;
-}
+import {
+  TRADE_EXPIRY_MINUTES,
+  INITIAL_OFFER,
+  TRADE_STATUS,
+  TRADE_ERROR_MESSAGES,
+} from '../config/trade.config';
+import {
+  CreateTradeSchema,
+  AddToTradeOfferSchema,
+  AcceptTradeSchema,
+  TradeOfferSchema,
+  type TradeOffer,
+} from '../config/validation.schemas';
+import { validateInteger } from '../common/sanitization.util';
 
 @Injectable()
 export class TradeService {
   private readonly logger = new Logger(TradeService.name);
-  private readonly tradeExpiryMinutes = 30;
 
   constructor(private readonly prisma: PrismaService) {}
 
   async startTrade(fromCharId: number, toCharId: number) {
+    // Validate input parameters
+    const validated = CreateTradeSchema.parse({
+      fromCharId,
+      toCharId,
+    });
+
     // Check if there's already a pending trade
     const existingTrade = await this.prisma.trade.findFirst({
       where: {
         OR: [
-          { fromCharId, status: 'PENDING' },
-          { toCharId, status: 'PENDING' },
+          { fromCharId: validated.fromCharId, status: TRADE_STATUS.PENDING },
+          { toCharId: validated.toCharId, status: TRADE_STATUS.PENDING },
         ],
       },
     });
 
     if (existingTrade) {
       throw new BadRequestException(
-        'One of the characters already has a pending trade',
+        TRADE_ERROR_MESSAGES.PENDING_TRADE_EXISTS,
       );
     }
 
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + this.tradeExpiryMinutes);
+    expiresAt.setMinutes(expiresAt.getMinutes() + TRADE_EXPIRY_MINUTES);
 
     const trade = await this.prisma.trade.create({
       data: {
-        fromCharId,
-        toCharId,
-        offerFrom: JSON.stringify({ items: [], gold: 0 }),
-        offerTo: JSON.stringify({ items: [], gold: 0 }),
+        fromCharId: validated.fromCharId,
+        toCharId: validated.toCharId,
+        offerFrom: JSON.stringify(INITIAL_OFFER),
+        offerTo: JSON.stringify(INITIAL_OFFER),
         expiresAt,
       },
     });
@@ -67,34 +81,44 @@ export class TradeService {
     key?: string,
     qty?: number,
   ) {
+    // Sanitize inputs
+    validateInteger(tradeId, 1);
+    validateInteger(characterId, 1);
+
+    if (type === 'gold' && qty !== undefined) {
+      validateInteger(qty, 0, 1000000);
+    }
+
     const trade = await this.prisma.trade.findUnique({
       where: { id: tradeId },
     });
 
     if (!trade) {
-      throw new NotFoundException('Trade not found');
+      throw new NotFoundException(TRADE_ERROR_MESSAGES.TRADE_NOT_FOUND);
     }
 
-    if (trade.status !== 'PENDING') {
-      throw new BadRequestException('Trade is not pending');
+    if (trade.status !== TRADE_STATUS.PENDING) {
+      throw new BadRequestException(TRADE_ERROR_MESSAGES.TRADE_NOT_PENDING);
     }
 
     if (new Date() > trade.expiresAt) {
-      throw new BadRequestException('Trade has expired');
+      throw new BadRequestException(TRADE_ERROR_MESSAGES.TRADE_EXPIRED);
     }
 
     if (characterId !== trade.fromCharId && characterId !== trade.toCharId) {
-      throw new BadRequestException('You are not part of this trade');
+      throw new BadRequestException(
+        TRADE_ERROR_MESSAGES.NOT_TRADE_PARTICIPANT,
+      );
     }
 
     const isFromChar = characterId === trade.fromCharId;
     const currentOffer = isFromChar
-      ? (JSON.parse(trade.offerFrom) as TradeOffer)
-      : (JSON.parse(trade.offerTo) as TradeOffer);
+      ? TradeOfferSchema.parse(JSON.parse(trade.offerFrom))
+      : TradeOfferSchema.parse(JSON.parse(trade.offerTo));
 
     if (type === 'gold') {
       if (!qty || qty <= 0) {
-        throw new BadRequestException('Invalid gold amount');
+        throw new BadRequestException(TRADE_ERROR_MESSAGES.INVALID_GOLD_AMOUNT);
       }
 
       // Check if character has enough gold
@@ -103,13 +127,15 @@ export class TradeService {
       });
 
       if (!character || character.gold < currentOffer.gold + qty) {
-        throw new BadRequestException('Insufficient gold');
+        throw new InsufficientGoldError();
       }
 
       currentOffer.gold += qty;
     } else if (type === 'item') {
       if (!key || !qty || qty <= 0) {
-        throw new BadRequestException('Invalid item parameters');
+        throw new BadRequestException(
+          TRADE_ERROR_MESSAGES.INVALID_ITEM_PARAMETERS,
+        );
       }
 
       const item = await this.prisma.item.findUnique({
@@ -135,7 +161,7 @@ export class TradeService {
         currentOffer.items.find((i) => i.itemId === item.id)?.qty || 0;
 
       if (currentQty < offeredQty + qty) {
-        throw new BadRequestException('Insufficient items');
+        throw new InsufficientItemsError();
       }
 
       // Add to offer
@@ -181,32 +207,36 @@ export class TradeService {
   }
 
   async acceptTrade(tradeId: number, characterId: number) {
+    // Validate input parameters
+    AcceptTradeSchema.parse({
+      tradeId,
+      characterId,
+    });
+
     return this.prisma.$transaction(async (tx) => {
       const trade = await tx.trade.findUnique({
         where: { id: tradeId },
       });
 
       if (!trade) {
-        throw new NotFoundException('Trade not found');
+        throw new NotFoundException(TRADE_ERROR_MESSAGES.TRADE_NOT_FOUND);
       }
 
-      if (trade.status !== 'PENDING') {
-        throw new BadRequestException('Trade is not pending');
+      if (trade.status !== TRADE_STATUS.PENDING) {
+        throw new BadRequestException(TRADE_ERROR_MESSAGES.TRADE_NOT_PENDING);
       }
 
       if (new Date() > trade.expiresAt) {
-        throw new BadRequestException('Trade has expired');
+        throw new BadRequestException(TRADE_ERROR_MESSAGES.TRADE_EXPIRED);
       }
 
       // Only the "to" character can accept
       if (characterId !== trade.toCharId) {
-        throw new BadRequestException(
-          'Only the recipient can accept the trade',
-        );
+        throw new BadRequestException(TRADE_ERROR_MESSAGES.NOT_RECIPIENT);
       }
 
-      const offerFrom = JSON.parse(trade.offerFrom) as TradeOffer;
-      const offerTo = JSON.parse(trade.offerTo) as TradeOffer;
+      const offerFrom = TradeOfferSchema.parse(JSON.parse(trade.offerFrom));
+      const offerTo = TradeOfferSchema.parse(JSON.parse(trade.offerTo));
 
       // Get both characters with their inventory
       const [fromChar, toChar] = await Promise.all([
@@ -221,7 +251,9 @@ export class TradeService {
       ]);
 
       if (!fromChar || !toChar) {
-        throw new BadRequestException('Character not found');
+        throw new BadRequestException(
+          TRADE_ERROR_MESSAGES.CHARACTER_NOT_FOUND,
+        );
       }
 
       // Verify both sides have required items and gold
@@ -281,44 +313,71 @@ export class TradeService {
     offerFrom: TradeOffer,
     offerTo: TradeOffer,
   ) {
-    // Update gold
+    this.logger.debug(`[Trade ${trade.id}] Starting trade execution between characters ${trade.fromCharId} and ${trade.toCharId}`);
+
+    // Update gold - correctly swap between both characters
+    // Character sending offer loses their gold amount and gains the other's amount
+    this.logger.debug(`[Trade ${trade.id}] Decrementing gold for fromChar (${trade.fromCharId}): ${offerFrom.gold}`);
     await tx.character.update({
       where: { id: trade.fromCharId },
-      data: { gold: { decrement: offerFrom.gold } },
+      data: {
+        gold: {
+          decrement: offerFrom.gold,
+        },
+      },
     });
 
+    this.logger.debug(`[Trade ${trade.id}] Incrementing gold for fromChar (${trade.fromCharId}): ${offerTo.gold}`);
     await tx.character.update({
       where: { id: trade.fromCharId },
-      data: { gold: { increment: offerTo.gold } },
+      data: {
+        gold: {
+          increment: offerTo.gold,
+        },
+      },
     });
 
+    // Character receiving offer loses their gold amount and gains the other's amount
+    this.logger.debug(`[Trade ${trade.id}] Decrementing gold for toChar (${trade.toCharId}): ${offerTo.gold}`);
     await tx.character.update({
       where: { id: trade.toCharId },
-      data: { gold: { decrement: offerTo.gold } },
+      data: {
+        gold: {
+          decrement: offerTo.gold,
+        },
+      },
     });
 
+    this.logger.debug(`[Trade ${trade.id}] Incrementing gold for toChar (${trade.toCharId}): ${offerFrom.gold}`);
     await tx.character.update({
       where: { id: trade.toCharId },
-      data: { gold: { increment: offerFrom.gold } },
+      data: {
+        gold: {
+          increment: offerFrom.gold,
+        },
+      },
     });
+
+    this.logger.debug(`[Trade ${trade.id}] Gold transfers completed successfully`);
 
     // Transfer items from fromChar to toChar
+    // Items are already verified to exist in verifyTradeRequirements
+    this.logger.debug(`[Trade ${trade.id}] Starting item transfer from fromChar to toChar (${offerFrom.items.length} item types)`);
     for (const offerItem of offerFrom.items) {
-      await tx.inventory.upsert({
+      // Decrease quantity for seller
+      this.logger.debug(`[Trade ${trade.id}] Decreasing inventory for fromChar (${trade.fromCharId}): itemId=${offerItem.itemId}, qty=${offerItem.qty}`);
+      await tx.inventory.update({
         where: {
           charId_itemId: {
             charId: trade.fromCharId,
             itemId: offerItem.itemId,
           },
         },
-        update: { qty: { decrement: offerItem.qty } },
-        create: {
-          charId: trade.fromCharId,
-          itemId: offerItem.itemId,
-          qty: -offerItem.qty,
-        },
+        data: { qty: { decrement: offerItem.qty } },
       });
 
+      // Increase quantity for buyer
+      this.logger.debug(`[Trade ${trade.id}] Increasing inventory for toChar (${trade.toCharId}): itemId=${offerItem.itemId}, qty=${offerItem.qty}`);
       await tx.inventory.upsert({
         where: {
           charId_itemId: {
@@ -336,22 +395,22 @@ export class TradeService {
     }
 
     // Transfer items from toChar to fromChar
+    this.logger.debug(`[Trade ${trade.id}] Starting item transfer from toChar to fromChar (${offerTo.items.length} item types)`);
     for (const offerItem of offerTo.items) {
-      await tx.inventory.upsert({
+      // Decrease quantity for seller
+      this.logger.debug(`[Trade ${trade.id}] Decreasing inventory for toChar (${trade.toCharId}): itemId=${offerItem.itemId}, qty=${offerItem.qty}`);
+      await tx.inventory.update({
         where: {
           charId_itemId: {
             charId: trade.toCharId,
             itemId: offerItem.itemId,
           },
         },
-        update: { qty: { decrement: offerItem.qty } },
-        create: {
-          charId: trade.toCharId,
-          itemId: offerItem.itemId,
-          qty: -offerItem.qty,
-        },
+        data: { qty: { decrement: offerItem.qty } },
       });
 
+      // Increase quantity for buyer
+      this.logger.debug(`[Trade ${trade.id}] Increasing inventory for fromChar (${trade.fromCharId}): itemId=${offerItem.itemId}, qty=${offerItem.qty}`);
       await tx.inventory.upsert({
         where: {
           charId_itemId: {
@@ -369,12 +428,14 @@ export class TradeService {
     }
 
     // Mark trade as executed
+    this.logger.debug(`[Trade ${trade.id}] Marking trade status as EXECUTED`);
     await tx.trade.update({
       where: { id: trade.id },
-      data: { status: 'EXECUTED' },
+      data: { status: TRADE_STATUS.EXECUTED },
     });
 
     // Log transactions
+    this.logger.debug(`[Trade ${trade.id}] Creating transaction log for fromChar (${trade.fromCharId})`);
     await tx.txLog.create({
       data: {
         charId: trade.fromCharId,
@@ -388,6 +449,7 @@ export class TradeService {
       },
     });
 
+    this.logger.debug(`[Trade ${trade.id}] Creating transaction log for toChar (${trade.toCharId})`);
     await tx.txLog.create({
       data: {
         charId: trade.toCharId,
@@ -400,15 +462,19 @@ export class TradeService {
         }),
       },
     });
+
+    this.logger.log(
+      `[Trade ${trade.id}] Trade settlement completed successfully between ${trade.fromCharId} and ${trade.toCharId}. Gold: ${offerFrom.gold}, Items: ${offerFrom.items.length}`,
+    );
   }
 
   async cleanupExpiredTrades() {
     const result = await this.prisma.trade.updateMany({
       where: {
-        status: 'PENDING',
+        status: TRADE_STATUS.PENDING,
         expiresAt: { lt: new Date() },
       },
-      data: { status: 'EXPIRED' },
+      data: { status: TRADE_STATUS.EXPIRED },
     });
 
     if (result.count > 0) {

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseGuards } from '@nestjs/common';
 import {
   Context,
   SlashCommand,
@@ -6,9 +6,13 @@ import {
   StringOption,
   IntegerOption,
 } from 'necord';
+import { IsString, IsInt, Min, Max, Length } from 'class-validator';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { EconomyService } from '../../economy/economy.service';
+import { ECONOMY_CONFIG } from '../../config/game.constants';
+import { GuildOnlyGuard } from '../guards/guild-only.guard';
+import { CharacterExistsGuard } from '../guards/character-exists.guard';
 
 export class BuyDto {
   @StringOption({
@@ -16,6 +20,8 @@ export class BuyDto {
     description: 'Item key',
     required: true,
   })
+  @IsString()
+  @Length(1, 50)
   key: string;
 
   @IntegerOption({
@@ -24,6 +30,9 @@ export class BuyDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(1)
+  @Max(ECONOMY_CONFIG.MAX_PAGE_SIZE)
   qty: number;
 }
 
@@ -63,6 +72,7 @@ export class EconomyCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @SlashCommand({
     name: 'buy',
     description: 'Buy an item from the shop',
@@ -71,28 +81,13 @@ export class EconomyCommands {
     @Context() [interaction]: [CommandInteraction],
     @Options() { key, qty }: BuyDto,
   ) {
-    const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
-
-    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
-
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
+    const user = await this.usersService.getUserByDiscordId(
+      interaction.user.id,
+      interaction.guildId!,
+    );
 
     const result = await this.economyService.buyItem(
-      user.character.id,
+      user!.character!.id,
       key,
       qty,
     );

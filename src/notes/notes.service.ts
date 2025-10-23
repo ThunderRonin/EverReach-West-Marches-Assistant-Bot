@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../db/prisma.service';
+import { NOTES_CONFIG } from '../config/game.constants';
 
 interface NoteWithEmbedding {
   id: number;
@@ -28,13 +29,13 @@ export class NotesService implements OnModuleInit {
   ) {
     this.embeddingDimension = this.configService.get<number>(
       'EMBEDDING_DIM',
-      384,
+      NOTES_CONFIG.DEFAULT_EMBEDDING_DIMENSION,
     );
     this.embeddingApiUrl = this.configService.get<string>('EMBEDDING_API_URL');
     this.embeddingApiKey = this.configService.get<string>('EMBEDDING_API_KEY');
     this.embeddingModel = this.configService.get<string>(
       'EMBEDDING_MODEL',
-      'text-embedding-3-small',
+      NOTES_CONFIG.DEFAULT_EMBEDDING_MODEL,
     );
   }
 
@@ -76,7 +77,7 @@ export class NotesService implements OnModuleInit {
     }
   }
 
-  async searchNotes(userId: number, query: string, topK = 5) {
+  async searchNotes(userId: number, query: string, topK = NOTES_CONFIG.DEFAULT_SEARCH_TOP_K) {
     try {
       const userNotes = this.userNotes.get(userId);
       if (!userNotes || userNotes.length === 0) {

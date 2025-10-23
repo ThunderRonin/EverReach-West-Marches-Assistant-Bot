@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseGuards } from '@nestjs/common';
 import {
   Context,
   createCommandGroupDecorator,
@@ -8,11 +8,16 @@ import {
   IntegerOption,
   UserOption,
 } from 'necord';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { CommandInteraction, EmbedBuilder, User } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { TradeService } from '../../trade/trade.service';
 import { PrismaService } from '../../db/prisma.service';
-import type { TradeOffer } from '../../trade/trade.service';
+import type { TradeOffer } from '../../config/validation.schemas';
+import { TRADE_CONFIG } from '../../config/game.constants';
+import { TradeOfferSchema } from '../../config/validation.schemas';
+import { GuildOnlyGuard } from '../guards/guild-only.guard';
+import { CharacterExistsGuard } from '../guards/character-exists.guard';
 
 const TradeCommand = createCommandGroupDecorator({
   name: 'trade',
@@ -38,6 +43,7 @@ export class TradeAddDto {
       { name: 'Gold', value: 'gold' },
     ],
   })
+  @IsEnum(['item', 'gold'])
   type: 'item' | 'gold';
 
   @IntegerOption({
@@ -46,6 +52,8 @@ export class TradeAddDto {
     required: true,
     min_value: 1,
   })
+  @IsInt()
+  @Min(1)
   qty: number;
 
   @StringOption({
@@ -53,6 +61,8 @@ export class TradeAddDto {
     description: 'Item key (for items)',
     required: false,
   })
+  @IsOptional()
+  @IsString()
   key?: string;
 }
 
@@ -65,6 +75,7 @@ export class TradeCommands {
     private readonly prisma: PrismaService,
   ) {}
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'start',
     description: 'Start a trade with another user',
@@ -74,14 +85,7 @@ export class TradeCommands {
     @Options() { user: targetUser }: TradeStartDto,
   ) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     if (targetUser.id === discordId) {
       return interaction.reply({
@@ -95,14 +99,6 @@ export class TradeCommands {
       this.usersService.getUserByDiscordId(targetUser.id, guildId),
     ]);
 
-    if (!fromUser?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
     if (!toUser?.character) {
       return interaction.reply({
         content: `${targetUser.username} needs to register a character first!`,
@@ -111,15 +107,15 @@ export class TradeCommands {
     }
 
     const trade = await this.tradeService.startTrade(
-      fromUser.character.id,
-      toUser.character.id,
+      fromUser!.character!.id,
+      toUser!.character!.id,
     );
 
     const embed = new EmbedBuilder()
       .setTitle('🤝 Trade Started')
       .setColor('#00ff00')
       .setDescription(
-        `Trade started between ${fromUser.character.name} and ${toUser.character.name}`,
+        `Trade started between ${fromUser!.character!.name} and ${toUser!.character!.name}`,
       )
       .addFields(
         { name: 'Trade ID', value: trade.id.toString(), inline: true },
@@ -140,6 +136,7 @@ export class TradeCommands {
     });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'add',
     description: 'Add item or gold to your trade offer',
@@ -149,14 +146,7 @@ export class TradeCommands {
     @Options() { type, key, qty }: TradeAddDto,
   ) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     if (type === 'item' && !key) {
       return interaction.reply({
@@ -167,16 +157,8 @@ export class TradeCommands {
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
     const trade = await this.tradeService.getPendingTradeByCharacter(
-      user.character.id,
+      user!.character!.id,
     );
 
     if (!trade) {
@@ -189,7 +171,7 @@ export class TradeCommands {
 
     await this.tradeService.addToTradeOffer(
       trade.id,
-      user.character.id,
+      user!.character!.id,
       type,
       key,
       qty,
@@ -219,33 +201,19 @@ export class TradeCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'show',
     description: 'Show current pending trade',
   })
   async onTradeShow(@Context() [interaction]: [CommandInteraction]) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
     const trade = await this.tradeService.getPendingTradeByCharacter(
-      user.character.id,
+      user!.character!.id,
     );
 
     if (!trade) {
@@ -261,8 +229,8 @@ export class TradeCommands {
       this.prisma.character.findUnique({ where: { id: trade.toCharId } }),
     ]);
 
-    const offerFrom = JSON.parse(trade.offerFrom) as TradeOffer;
-    const offerTo = JSON.parse(trade.offerTo) as TradeOffer;
+    const offerFrom = TradeOfferSchema.parse(JSON.parse(trade.offerFrom));
+    const offerTo = TradeOfferSchema.parse(JSON.parse(trade.offerTo));
 
     const fromItemIds = offerFrom.items.map((item) => item.itemId);
     const toItemIds = offerTo.items.map((item) => item.itemId);
@@ -315,7 +283,7 @@ export class TradeCommands {
       },
     );
 
-    if (trade.toCharId === user.character.id) {
+    if (trade.toCharId === user!.character!.id) {
       embed.setFooter({ text: 'Use /trade accept to accept this trade' });
     } else {
       embed.setFooter({
@@ -326,33 +294,19 @@ export class TradeCommands {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
   @Subcommand({
     name: 'accept',
     description: 'Accept the current trade',
   })
   async onTradeAccept(@Context() [interaction]: [CommandInteraction]) {
     const discordId = interaction.user.id;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'This command can only be used in a server.',
-        ephemeral: true,
-      });
-    }
+    const guildId = interaction.guildId!;
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
 
-    if (!user?.character) {
-      return interaction.reply({
-        content:
-          'You need to register a character first! Use `/register <name>` to get started.',
-        ephemeral: true,
-      });
-    }
-
     const trade = await this.tradeService.getPendingTradeByCharacter(
-      user.character.id,
+      user!.character!.id,
     );
 
     if (!trade) {
@@ -363,7 +317,7 @@ export class TradeCommands {
       });
     }
 
-    if (trade.toCharId !== user.character.id) {
+    if (trade.toCharId !== user!.character!.id) {
       return interaction.reply({
         content:
           'Only the recipient can accept the trade. Use `/trade show` to view the current trade.',
@@ -371,15 +325,15 @@ export class TradeCommands {
       });
     }
 
-    await this.tradeService.acceptTrade(trade.id, user.character.id);
+    await this.tradeService.acceptTrade(trade.id, user!.character!.id);
 
     const [fromChar, toChar] = await Promise.all([
       this.prisma.character.findUnique({ where: { id: trade.fromCharId } }),
       this.prisma.character.findUnique({ where: { id: trade.toCharId } }),
     ]);
 
-    const offerFrom = JSON.parse(trade.offerFrom) as TradeOffer;
-    const offerTo = JSON.parse(trade.offerTo) as TradeOffer;
+    const offerFrom = TradeOfferSchema.parse(JSON.parse(trade.offerFrom));
+    const offerTo = TradeOfferSchema.parse(JSON.parse(trade.offerTo));
 
     const embed = new EmbedBuilder()
       .setTitle('✅ Trade Completed')

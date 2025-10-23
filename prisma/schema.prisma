@@ -56,6 +56,10 @@ model TxLog {
   payload   String   // JSON string
   createdAt DateTime @default(now())
   character Character @relation(fields: [charId], references: [id], onDelete: Cascade)
+
+  // Indexes for transaction history queries
+  @@index([charId, createdAt(sort: Desc)])
+  @@index([charId, type])
 }
 
 model Trade {
@@ -68,6 +72,11 @@ model Trade {
   status      String   @default("PENDING") // PENDING|CANCELLED|EXECUTED|EXPIRED
   expiresAt   DateTime
   createdAt   DateTime @default(now())
+
+  // Indexes for finding pending trades and cleanup operations
+  @@index([fromCharId, status])
+  @@index([toCharId, status])
+  @@index([status, expiresAt])
 }
 
 model Auction {
@@ -86,6 +95,11 @@ model Auction {
   item    Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
   bidder  Character? @relation("AuctionBidder", fields: [currentBidderId], references: [id])
   bids    Bid[]
+
+  // Indexes for finding open/expired auctions and user auctions
+  @@index([status, expiresAt])
+  @@index([sellerId, status])
+  @@index([currentBidderId, status])
 }
 
 model Bid {
@@ -106,4 +120,7 @@ model Note {
   embedding Bytes?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Index for user's notes with descending creation date
+  @@index([userId, createdAt(sort: Desc)])
 }

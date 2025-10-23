@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../db/prisma.service';
+import { ECONOMY_CONFIG } from '../config/game.constants';
 import {
   ItemNotFoundError,
   InsufficientGoldError,
@@ -116,7 +117,7 @@ export class EconomyService {
     });
   }
 
-  async getTransactionHistory(characterId: number, limit = 10) {
+  async getTransactionHistory(characterId: number, limit = ECONOMY_CONFIG.DEFAULT_HISTORY_LIMIT) {
     return this.prisma.txLog.findMany({
       where: { charId: characterId },
       orderBy: { createdAt: 'desc' },
