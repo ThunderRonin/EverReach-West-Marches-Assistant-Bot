@@ -16,7 +16,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Observable, tap, catchError } from 'rxjs';
-import { Interaction, BaseInteraction } from 'discord.js';
+import { BaseInteraction } from 'discord.js';
 
 /**
  * Command execution log entry
@@ -44,34 +44,39 @@ const MAX_LOG_SIZE = 10000;
 /**
  * Get command options from interaction
  */
-function getCommandOptions(interaction: BaseInteraction): Record<string, unknown> {
+function getCommandOptions(
+  interaction: BaseInteraction,
+): Record<string, unknown> {
   try {
-    if (!('options' in interaction)) {
-      return {};
-    }
-
-    const options = (interaction as any).options;
-    if (!options) {
+    if (!interaction.isChatInputCommand()) {
       return {};
     }
 
     // Extract command options
     const extracted: Record<string, unknown> = {};
 
-    // Handle subcommand group and subcommand
-    if (options.getSubcommandGroup?.(false)) {
-      extracted.subcommandGroup = options.getSubcommandGroup?.(false);
+    const subcommandGroup = interaction.options.getSubcommandGroup(false);
+    if (subcommandGroup) {
+      extracted.subcommandGroup = subcommandGroup;
     }
 
-    if (options.getSubcommand?.(false)) {
-      extracted.subcommand = options.getSubcommand?.(false);
+    const subcommand = interaction.options.getSubcommand(false);
+    if (subcommand) {
+      extracted.subcommand = subcommand;
     }
 
-    // Get all options
-    const allOptions = options._hoistedOptions || [];
-    allOptions.forEach((opt: any) => {
-      extracted[opt.name] = opt.value;
-    });
+    for (const opt of interaction.options.data) {
+      if (opt.value !== undefined) {
+        extracted[opt.name] = opt.value;
+      }
+      if (opt.options) {
+        for (const subOpt of opt.options) {
+          if (subOpt.value !== undefined) {
+            extracted[subOpt.name] = subOpt.value;
+          }
+        }
+      }
+    }
 
     return extracted;
   } catch (error) {
@@ -85,28 +90,24 @@ function getCommandOptions(interaction: BaseInteraction): Record<string, unknown
  */
 function getCommandName(interaction: BaseInteraction): string {
   try {
-    if (!('commandName' in interaction)) {
+    if (!interaction.isChatInputCommand()) {
       return 'unknown';
     }
 
-    const commandName = (interaction as any).commandName || 'unknown';
-    const options = (interaction as any).options;
+    const commandName = interaction.commandName;
+    const subcommandGroup = interaction.options.getSubcommandGroup(false);
+    const subcommand = interaction.options.getSubcommand(false);
 
-    if (options) {
-      const subcommandGroup = options.getSubcommandGroup?.(false);
-      const subcommand = options.getSubcommand?.(false);
+    if (subcommandGroup && subcommand) {
+      return `${commandName} ${subcommandGroup} ${subcommand}`;
+    }
 
-      if (subcommandGroup && subcommand) {
-        return `${commandName} ${subcommandGroup} ${subcommand}`;
-      }
-
-      if (subcommand) {
-        return `${commandName} ${subcommand}`;
-      }
+    if (subcommand) {
+      return `${commandName} ${subcommand}`;
     }
 
     return commandName;
-  } catch (error) {
+  } catch {
     return 'unknown';
   }
 }
@@ -139,18 +140,19 @@ export class CommandLoggingInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     try {
-      const args = (context.switchToRpc() as any).getArgs?.() || [];
-      const interaction = args[0];
+      const args = context.getArgs<unknown[]>();
+      const interaction = args[0] as BaseInteraction | undefined;
 
       // Skip if not a valid Discord interaction
       if (!interaction || !('user' in interaction)) {
         return next.handle();
       }
 
-      const baseInteraction = interaction as BaseInteraction;
+      const baseInteraction = interaction;
       const userId = baseInteraction.user?.id || 'unknown';
       const userName = baseInteraction.user?.username || 'unknown';
-      const guildId = 'guildId' in baseInteraction ? baseInteraction.guildId : null;
+      const guildId =
+        'guildId' in baseInteraction ? baseInteraction.guildId : null;
       const commandName = getCommandName(baseInteraction);
       const commandOptions = getCommandOptions(baseInteraction);
 
@@ -224,7 +226,10 @@ export class CommandLoggingInterceptor implements NestInterceptor {
 /**
  * Get recent command logs
  */
-export function getCommandLogs(limit: number = 100, userId?: string): CommandLog[] {
+export function getCommandLogs(
+  limit: number = 100,
+  userId?: string,
+): CommandLog[] {
   let logs = [...commandLogs];
 
   if (userId) {
@@ -283,13 +288,17 @@ export function getCommandStats(userId?: string) {
   });
 
   stats.averageExecutionMs =
-    stats.totalCommands > 0 ? Math.round(totalExecutionTime / stats.totalCommands) : 0;
+    stats.totalCommands > 0
+      ? Math.round(totalExecutionTime / stats.totalCommands)
+      : 0;
 
   return {
     ...stats,
     commandCounts: Object.fromEntries(stats.commandCounts),
     errorCounts: Object.fromEntries(stats.errorCounts),
-    averageExecutionByCommand: Object.fromEntries(stats.averageExecutionByCommand),
+    averageExecutionByCommand: Object.fromEntries(
+      stats.averageExecutionByCommand,
+    ),
   };
 }
 
@@ -326,7 +335,10 @@ export function clearCommandLogs(userId?: string): number {
 export function searchCommandLogs(criteria: Partial<CommandLog>): CommandLog[] {
   return commandLogs.filter((log) => {
     for (const [key, value] of Object.entries(criteria)) {
-      if (value !== undefined && (log as any)[key] !== value) {
+      if (
+        value !== undefined &&
+        (log as unknown as Record<string, unknown>)[key] !== value
+      ) {
         return false;
       }
     }
@@ -338,5 +350,8 @@ export function searchCommandLogs(criteria: Partial<CommandLog>): CommandLog[] {
  * Get commands that failed
  */
 export function getFailedCommands(limit: number = 50): CommandLog[] {
-  return commandLogs.filter((log) => !log.success).reverse().slice(0, limit);
+  return commandLogs
+    .filter((log) => !log.success)
+    .reverse()
+    .slice(0, limit);
 }

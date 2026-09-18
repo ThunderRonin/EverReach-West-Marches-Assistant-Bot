@@ -109,11 +109,35 @@ describe('Trade E2E Tests', () => {
       // Create trade: char1 offers 200 gold + 2 Swords for char2's 100 gold + 1 Shield
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
-      await tradeService.addToTradeOffer(trade.id, char1.id, 'gold', undefined, 200);
-      await tradeService.addToTradeOffer(trade.id, char1.id, 'item', String(item1.id), 2);
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char1.id,
+        'gold',
+        undefined,
+        200,
+      );
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char1.id,
+        'item',
+        item1.key,
+        2,
+      );
 
-      await tradeService.addToTradeOffer(trade.id, char2.id, 'gold', undefined, 100);
-      await tradeService.addToTradeOffer(trade.id, char2.id, 'item', String(item2.id), 1);
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char2.id,
+        'gold',
+        undefined,
+        100,
+      );
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char2.id,
+        'item',
+        item2.key,
+        1,
+      );
 
       // Execute trade
       const result = await tradeService.acceptTrade(trade.id, char2.id);
@@ -129,10 +153,14 @@ describe('Trade E2E Tests', () => {
 
       expect(char1After).toBeDefined();
       expect(char1After!.gold).toBe(1000 - 200 + 100); // Lost 200, gained 100 = 900
-      const char1Sword = char1After!.inventory.find((inv) => inv.itemId === item1.id);
+      const char1Sword = char1After!.inventory.find(
+        (inv) => inv.itemId === item1.id,
+      );
       expect(char1Sword).toBeDefined();
       expect(char1Sword!.qty).toBe(5 - 2); // Lost 2 swords
-      const char1Shield = char1After!.inventory.find((inv) => inv.itemId === item2.id);
+      const char1Shield = char1After!.inventory.find(
+        (inv) => inv.itemId === item2.id,
+      );
       expect(char1Shield).toBeDefined();
       expect(char1Shield!.qty).toBe(1); // Gained 1 shield
 
@@ -144,10 +172,14 @@ describe('Trade E2E Tests', () => {
 
       expect(char2After).toBeDefined();
       expect(char2After!.gold).toBe(500 - 100 + 200); // Lost 100, gained 200 = 600
-      const char2Sword = char2After!.inventory.find((inv) => inv.itemId === item1.id);
+      const char2Sword = char2After!.inventory.find(
+        (inv) => inv.itemId === item1.id,
+      );
       expect(char2Sword).toBeDefined();
       expect(char2Sword!.qty).toBe(2); // Gained 2 swords
-      const char2Shield = char2After!.inventory.find((inv) => inv.itemId === item2.id);
+      const char2Shield = char2After!.inventory.find(
+        (inv) => inv.itemId === item2.id,
+      );
       expect(char2Shield).toBeDefined();
       expect(char2Shield!.qty).toBe(3 - 1); // Lost 1 shield
 
@@ -197,7 +229,13 @@ describe('Trade E2E Tests', () => {
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
       await expect(
-        tradeService.addToTradeOffer(trade.id, char1.id, 'gold', undefined, 100),
+        tradeService.addToTradeOffer(
+          trade.id,
+          char1.id,
+          'gold',
+          undefined,
+          100,
+        ),
       ).rejects.toThrow(); // Should fail validation or acceptance
 
       // Verify no transaction was created
@@ -263,7 +301,7 @@ describe('Trade E2E Tests', () => {
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
       await expect(
-        tradeService.addToTradeOffer(trade.id, char1.id, 'item', String(item.id), 5),
+        tradeService.addToTradeOffer(trade.id, char1.id, 'item', item.key, 5),
       ).rejects.toThrow(); // Should fail validation
 
       // Verify no transaction was created
@@ -328,8 +366,20 @@ describe('Trade E2E Tests', () => {
       // Trade where char1 offers all 5 items
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
-      await tradeService.addToTradeOffer(trade.id, char1.id, 'item', String(item.id), 5);
-      await tradeService.addToTradeOffer(trade.id, char2.id, 'gold', undefined, 100);
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char1.id,
+        'item',
+        item.key,
+        5,
+      );
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char2.id,
+        'gold',
+        undefined,
+        100,
+      );
 
       // Execute trade
       await tradeService.acceptTrade(trade.id, char2.id);
@@ -403,8 +453,20 @@ describe('Trade E2E Tests', () => {
       // Create simple gold trade
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
-      await tradeService.addToTradeOffer(trade.id, char1.id, 'gold', undefined, 200);
-      await tradeService.addToTradeOffer(trade.id, char2.id, 'gold', undefined, 150);
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char1.id,
+        'gold',
+        undefined,
+        200,
+      );
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char2.id,
+        'gold',
+        undefined,
+        150,
+      );
 
       // Execute trade
       await tradeService.acceptTrade(trade.id, char2.id);
@@ -488,8 +550,20 @@ describe('Trade E2E Tests', () => {
       // Create trade with items
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
-      await tradeService.addToTradeOffer(trade.id, char1.id, 'item', String(item.id), 3);
-      await tradeService.addToTradeOffer(trade.id, char2.id, 'gold', undefined, 500);
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char1.id,
+        'item',
+        item.key,
+        3,
+      );
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char2.id,
+        'gold',
+        undefined,
+        500,
+      );
 
       // Execute trade
       await tradeService.acceptTrade(trade.id, char2.id);
@@ -547,14 +621,6 @@ describe('Trade E2E Tests', () => {
         },
       });
 
-      const item = await prisma.item.create({
-        data: {
-          key: 'test_item',
-          name: 'Test Item',
-          baseValue: 100,
-        },
-      });
-
       // Store initial state
       const initialChar1Gold = char1.gold;
       const initialChar2Gold = char2.gold;
@@ -562,8 +628,20 @@ describe('Trade E2E Tests', () => {
       // Create valid trade
       const trade = await tradeService.startTrade(char1.id, char2.id);
 
-      await tradeService.addToTradeOffer(trade.id, char1.id, 'gold', undefined, 100);
-      await tradeService.addToTradeOffer(trade.id, char2.id, 'gold', undefined, 50);
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char1.id,
+        'gold',
+        undefined,
+        100,
+      );
+      await tradeService.addToTradeOffer(
+        trade.id,
+        char2.id,
+        'gold',
+        undefined,
+        50,
+      );
 
       // Execute trade successfully
       const result = await tradeService.acceptTrade(trade.id, char2.id);

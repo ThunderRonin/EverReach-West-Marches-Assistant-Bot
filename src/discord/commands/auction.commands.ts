@@ -9,9 +9,13 @@ import {
   IntegerOption,
 } from 'necord';
 import { IsString, IsInt, Min, Max, Length } from 'class-validator';
-import { CommandInteraction, EmbedBuilder, Client } from 'discord.js';
+import { CommandInteraction, EmbedBuilder } from 'discord.js';
+import type { Character } from '@prisma/client';
 import { UsersService } from '../../users/users.service';
-import { AuctionService } from '../../auction/auction.service';
+import {
+  AuctionService,
+  type AuctionWithRelations,
+} from '../../auction/auction.service';
 import { AUCTION_CONFIG } from '../../config/game.constants';
 import { GuildOnlyGuard } from '../guards/guild-only.guard';
 import { CharacterExistsGuard } from '../guards/character-exists.guard';
@@ -97,6 +101,22 @@ export class AuctionCommands {
     private readonly clientProvider: ClientProvider,
   ) {}
 
+  private async getCharacter(
+    interaction: CommandInteraction,
+  ): Promise<Character | null> {
+    const attached = (
+      interaction as CommandInteraction & { character?: Character }
+    ).character;
+    if (attached) {
+      return attached;
+    }
+    const user = await this.usersService.getUserByDiscordId(
+      interaction.user.id,
+      interaction.guildId!,
+    );
+    return user?.character ?? null;
+  }
+
   @Subcommand({
     name: 'list',
     description: 'List active auctions',
@@ -144,22 +164,15 @@ export class AuctionCommands {
     @Context() [interaction]: [CommandInteraction],
     @Options() { key, qty, minBid, minutes }: AuctionCreateDto,
   ) {
-    const discordId = interaction.user.id;
-    const guildId = interaction.guildId!;
-
-    // Get character from guard attachment first, fallback to database query
-    let character = (interaction as any).character;
-    
-    if (!character) {
-      const user = await this.usersService.getUserByDiscordId(discordId, guildId);
-      character = user?.character;
-    }
+    const character = await this.getCharacter(interaction);
 
     if (!character) {
       const embed = new EmbedBuilder()
         .setTitle('❌ Character Not Found')
         .setColor('#ff0000')
-        .setDescription('You need to register a character first! Use `/register <name>` to get started.');
+        .setDescription(
+          'You need to register a character first! Use `/register <name>` to get started.',
+        );
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
@@ -189,8 +202,11 @@ export class AuctionCommands {
       )
       .setFooter({ text: 'Use /auction bid <id> <amount> to place a bid' });
 
-    const reply = await interaction.reply({ embeds: [embed], fetchReply: true });
-    
+    const reply = await interaction.reply({
+      embeds: [embed],
+      fetchReply: true,
+    });
+
     // Store message ID for later updates
     if (reply && reply.id && interaction.channelId) {
       await this.auctionService.storeMessageId(
@@ -213,26 +229,23 @@ export class AuctionCommands {
     @Context() [interaction]: [CommandInteraction],
     @Options() { auctionId, amount }: AuctionBidDto,
   ) {
-    const discordId = interaction.user.id;
-    const guildId = interaction.guildId!;
-
-    // Get character from guard attachment first, fallback to database query
-    let character = (interaction as any).character;
-    
-    if (!character) {
-      const user = await this.usersService.getUserByDiscordId(discordId, guildId);
-      character = user?.character;
-    }
+    const character = await this.getCharacter(interaction);
 
     if (!character) {
       const embed = new EmbedBuilder()
         .setTitle('❌ Character Not Found')
         .setColor('#ff0000')
-        .setDescription('You need to register a character first! Use `/register <name>` to get started.');
+        .setDescription(
+          'You need to register a character first! Use `/register <name>` to get started.',
+        );
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    const updatedAuction = await this.auctionService.placeBid(auctionId, character.id, amount);
+    const updatedAuction = await this.auctionService.placeBid(
+      auctionId,
+      character.id,
+      amount,
+    );
 
     const embed = new EmbedBuilder()
       .setTitle('💰 Bid Placed')
@@ -270,22 +283,15 @@ export class AuctionCommands {
     description: 'View your auctions and bids',
   })
   async onAuctionMy(@Context() [interaction]: [CommandInteraction]) {
-    const discordId = interaction.user.id;
-    const guildId = interaction.guildId!;
-
-    // Get character from guard attachment first, fallback to database query
-    let character = (interaction as any).character;
-    
-    if (!character) {
-      const user = await this.usersService.getUserByDiscordId(discordId, guildId);
-      character = user?.character;
-    }
+    const character = await this.getCharacter(interaction);
 
     if (!character) {
       const embed = new EmbedBuilder()
         .setTitle('❌ Character Not Found')
         .setColor('#ff0000')
-        .setDescription('You need to register a character first! Use `/register <name>` to get started.');
+        .setDescription(
+          'You need to register a character first! Use `/register <name>` to get started.',
+        );
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
@@ -372,7 +378,7 @@ export class AuctionCommands {
   /**
    * Build a Discord embed for an auction listing
    */
-  private buildAuctionEmbed(auction: any): EmbedBuilder {
+  private buildAuctionEmbed(auction: AuctionWithRelations): EmbedBuilder {
     const currentBid = auction.currentBid
       ? `${auction.currentBid} gold`
       : 'No bids yet';
@@ -400,7 +406,7 @@ export class AuctionCommands {
    * Event handler for auction.sold - updates Discord message when auction is won
    */
   @OnEvent('auction.sold')
-  async onAuctionSold(payload: { auction: any }) {
+  async onAuctionSold(payload: { auction: AuctionWithRelations }) {
     try {
       const { auction } = payload;
 
@@ -450,7 +456,7 @@ export class AuctionCommands {
    * Event handler for auction.expired - updates Discord message when auction expires with no bids
    */
   @OnEvent('auction.expired')
-  async onAuctionExpired(payload: { auction: any }) {
+  async onAuctionExpired(payload: { auction: AuctionWithRelations }) {
     try {
       const { auction } = payload;
 
@@ -462,9 +468,17 @@ export class AuctionCommands {
         .addFields(
           { name: 'Item', value: auction.item.name, inline: true },
           { name: 'Seller', value: auction.seller.name, inline: true },
-          { name: 'Min Bid Required', value: `${auction.minBid} gold`, inline: true },
+          {
+            name: 'Min Bid Required',
+            value: `${auction.minBid} gold`,
+            inline: true,
+          },
           { name: 'Bids Received', value: '0 (No bids)', inline: true },
-          { name: 'Result', value: '❌ Items returned to seller', inline: true },
+          {
+            name: 'Result',
+            value: '❌ Items returned to seller',
+            inline: true,
+          },
           { name: 'Status', value: 'Expired', inline: true },
         )
         .setFooter({ text: 'Auction expired with no bids - items refunded' });

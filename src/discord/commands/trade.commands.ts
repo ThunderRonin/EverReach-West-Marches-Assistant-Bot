@@ -14,7 +14,6 @@ import { UsersService } from '../../users/users.service';
 import { TradeService } from '../../trade/trade.service';
 import { PrismaService } from '../../db/prisma.service';
 import type { TradeOffer } from '../../config/validation.schemas';
-import { TRADE_CONFIG } from '../../config/game.constants';
 import { TradeOfferSchema } from '../../config/validation.schemas';
 import { GuildOnlyGuard } from '../guards/guild-only.guard';
 import { CharacterExistsGuard } from '../guards/character-exists.guard';
@@ -108,14 +107,14 @@ export class TradeCommands {
 
     const trade = await this.tradeService.startTrade(
       fromUser!.character!.id,
-      toUser!.character!.id,
+      toUser.character.id,
     );
 
     const embed = new EmbedBuilder()
       .setTitle('🤝 Trade Started')
       .setColor('#00ff00')
       .setDescription(
-        `Trade started between ${fromUser!.character!.name} and ${toUser!.character!.name}`,
+        `Trade started between ${fromUser!.character!.name} and ${toUser.character.name}`,
       )
       .addFields(
         { name: 'Trade ID', value: trade.id.toString(), inline: true },
@@ -366,6 +365,38 @@ export class TradeCommands {
       value: `${formatTradeDetails(offerFrom.items, offerFrom.gold, fromChar?.name || 'Unknown')}\n${formatTradeDetails(offerTo.items, offerTo.gold, toChar?.name || 'Unknown')}`,
       inline: false,
     });
+
+    return interaction.reply({ embeds: [embed] });
+  }
+
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
+  @Subcommand({
+    name: 'cancel',
+    description: 'Cancel your current pending trade',
+  })
+  async onTradeCancel(@Context() [interaction]: [CommandInteraction]) {
+    const discordId = interaction.user.id;
+    const guildId = interaction.guildId!;
+
+    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+
+    const trade = await this.tradeService.getPendingTradeByCharacter(
+      user!.character!.id,
+    );
+
+    if (!trade) {
+      return interaction.reply({
+        content: "You don't have any pending trades to cancel.",
+        ephemeral: true,
+      });
+    }
+
+    await this.tradeService.cancelTrade(trade.id, user!.character!.id);
+
+    const embed = new EmbedBuilder()
+      .setTitle('❌ Trade Cancelled')
+      .setColor('#ff0000')
+      .setDescription(`Trade #${trade.id} has been cancelled.`);
 
     return interaction.reply({ embeds: [embed] });
   }

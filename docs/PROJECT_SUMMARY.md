@@ -34,7 +34,7 @@ The EverReach Assistant is a NestJS-based Discord bot for a West Marches style R
 
 ### Technology Stack
 - **Framework**: NestJS (TypeScript)
-- **Database**: SQLite with Prisma ORM
+- **Database**: PostgreSQL with Prisma ORM
 - **Integration**: Discord.js v14
 - **Testing**: Jest
 - **Linting**: ESLint with TypeScript ESLint

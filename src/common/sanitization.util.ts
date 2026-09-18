@@ -154,7 +154,9 @@ export function sanitizeString(value: string, maxLength = 1000): string {
     return '';
   }
 
-  const trimmed = value.trim();
+  // Remove null bytes
+  const clean = value.replace(/\0/g, '');
+  const trimmed = clean.trim();
 
   if (trimmed.length > maxLength) {
     return trimmed.substring(0, maxLength);
@@ -173,7 +175,11 @@ export function sanitizeString(value: string, maxLength = 1000): string {
  * @returns Validated integer
  * @throws Error if value is invalid
  */
-export function validateInteger(value: any, min = 0, max = Number.MAX_SAFE_INTEGER): number {
+export function validateInteger(
+  value: any,
+  min = Number.MIN_SAFE_INTEGER,
+  max = Number.MAX_SAFE_INTEGER,
+): number {
   const num = Number(value);
 
   if (!Number.isInteger(num)) {
@@ -195,7 +201,7 @@ export function validateInteger(value: any, min = 0, max = Number.MAX_SAFE_INTEG
  * Validate string is not empty
  * @param value - The value to validate
  * @param fieldName - Name of field for error message
- * @returns Trimmed string
+ * @returns Original string if valid
  * @throws Error if empty
  */
 export function validateNonEmpty(value: string, fieldName = 'Input'): string {
@@ -209,7 +215,7 @@ export function validateNonEmpty(value: string, fieldName = 'Input'): string {
     throw new Error(`${fieldName} cannot be empty`);
   }
 
-  return trimmed;
+  return value;
 }
 
 /**
@@ -250,7 +256,10 @@ export function removeUnsafeCharacters(str: string, allowedChars = ''): string {
     return '';
   }
 
-  const escapedAllowedChars = allowedChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedAllowedChars = allowedChars.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    '\\$&',
+  );
   const pattern = new RegExp(`[^a-zA-Z0-9${escapedAllowedChars}]`, 'g');
 
   return str.replace(pattern, '');

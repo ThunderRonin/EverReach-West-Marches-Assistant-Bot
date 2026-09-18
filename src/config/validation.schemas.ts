@@ -58,8 +58,14 @@ export const TradeOfferSchema = z.object({
  * Schema for validating trade initiation parameters
  */
 export const CreateTradeSchema = z.object({
-  fromCharId: z.number().int().positive('From character ID must be a positive integer'),
-  toCharId: z.number().int().positive('To character ID must be a positive integer'),
+  fromCharId: z
+    .number()
+    .int()
+    .positive('From character ID must be a positive integer'),
+  toCharId: z
+    .number()
+    .int()
+    .positive('To character ID must be a positive integer'),
 });
 
 /**
@@ -68,8 +74,13 @@ export const CreateTradeSchema = z.object({
  */
 export const AddToTradeOfferSchema = z.object({
   tradeId: z.number().int().positive('Trade ID must be a positive integer'),
-  characterId: z.number().int().positive('Character ID must be a positive integer'),
-  type: z.enum(['item', 'gold']).describe("Type must be either 'item' or 'gold'"),
+  characterId: z
+    .number()
+    .int()
+    .positive('Character ID must be a positive integer'),
+  type: z
+    .enum(['item', 'gold'])
+    .describe("Type must be either 'item' or 'gold'"),
   itemKey: z.string().optional(),
   qty: z.number().int().positive().optional(),
 });
@@ -79,7 +90,10 @@ export const AddToTradeOfferSchema = z.object({
  */
 export const AcceptTradeSchema = z.object({
   tradeId: z.number().int().positive('Trade ID must be a positive integer'),
-  characterId: z.number().int().positive('Character ID must be a positive integer'),
+  characterId: z
+    .number()
+    .int()
+    .positive('Character ID must be a positive integer'),
 });
 
 /**
@@ -178,7 +192,10 @@ export const BuyPayloadSchema = z.object({
  * Schema for validating trade transaction payloads
  */
 export const TradePayloadSchema = z.object({
-  partnerCharId: z.number().int().positive('Partner character ID must be positive'),
+  partnerCharId: z
+    .number()
+    .int()
+    .positive('Partner character ID must be positive'),
 });
 
 /**

@@ -15,17 +15,20 @@ export const THROTTLE_CONFIG = {
     START: {
       intervalMs: 5000, // Minimum 5 seconds between trade starts
       maxPerInterval: 1,
-      cooldownMessage: 'You must wait {seconds}s before starting another trade.',
+      cooldownMessage:
+        'You must wait {seconds}s before starting another trade.',
     },
     ADD_OFFER: {
       intervalMs: 1000, // Can add offers every 1 second
       maxPerInterval: 3, // But max 3 per second
-      cooldownMessage: 'You are adding offers too quickly. Please wait a moment.',
+      cooldownMessage:
+        'You are adding offers too quickly. Please wait a moment.',
     },
     ACCEPT: {
       intervalMs: 3000, // Minimum 3 seconds between accepts
       maxPerInterval: 1,
-      cooldownMessage: 'You are accepting trades too quickly. Please wait {seconds}s.',
+      cooldownMessage:
+        'You are accepting trades too quickly. Please wait {seconds}s.',
     },
     CANCEL: {
       intervalMs: 2000, // Minimum 2 seconds between cancels

@@ -13,7 +13,8 @@ export const SANITIZATION_RULES = {
    */
   ITEM_KEY: {
     pattern: /^[a-zA-Z0-9_]+$/,
-    description: 'Item key must contain only alphanumeric characters and underscores',
+    description:
+      'Item key must contain only alphanumeric characters and underscores',
     maxLength: 50,
   },
 
@@ -23,7 +24,8 @@ export const SANITIZATION_RULES = {
    */
   CHARACTER_NAME: {
     pattern: /^[a-zA-Z0-9\s\-']+$/,
-    description: 'Character name must contain only alphanumeric characters, spaces, hyphens, and apostrophes',
+    description:
+      'Character name must contain only alphanumeric characters, spaces, hyphens, and apostrophes',
     maxLength: 100,
   },
 
@@ -58,27 +60,35 @@ export const SANITIZATION_RULES = {
   },
 } as const;
 
+import type { IFilterXSSOptions } from 'xss';
+
 /**
- * XSS Prevention Options
+ * Default XSS protection options
  * Used by the xss library to sanitize HTML/script content
  */
-export const XSS_OPTIONS = {
+export const XSS_OPTIONS: IFilterXSSOptions = {
   whiteList: {}, // Empty whitelist - no HTML tags allowed
-  stripIgnoredTag: true,
-  stripLeadingAndTrailingWhitespace: true,
-  onTagAttr: (tag: string, name: string, value: string) => {
-    // Strip all attributes
-    return '';
+  stripIgnoreTag: false,
+  stripIgnoreTagBody: ['script'],
+  onTagAttr: () => '',
+  onIgnoreTag: (tag: string, html: string) => {
+    if (tag.toLowerCase() === 'script') return '';
+    if (/on\w+\s*=/i.test(html)) return '';
+    if (/^<\/?([a-zA-Z][a-zA-Z0-9]*)/.test(html)) return '';
+    return html;
   },
-} as const;
+};
 
 /**
  * Sanitization error messages
  */
 export const SANITIZATION_ERROR_MESSAGES = {
-  INVALID_ITEM_KEY: 'Invalid item key format. Use only alphanumeric characters and underscores.',
-  INVALID_CHARACTER_NAME: 'Invalid character name. Use only alphanumeric characters, spaces, hyphens, and apostrophes.',
-  INVALID_NOTE_CONTENT: 'Invalid note content. Maximum 5000 characters allowed.',
+  INVALID_ITEM_KEY:
+    'Invalid item key format. Use only alphanumeric characters and underscores.',
+  INVALID_CHARACTER_NAME:
+    'Invalid character name. Use only alphanumeric characters, spaces, hyphens, and apostrophes.',
+  INVALID_NOTE_CONTENT:
+    'Invalid note content. Maximum 5000 characters allowed.',
   INVALID_DISCORD_USERNAME: 'Invalid Discord username format.',
   INVALID_GUILD_NAME: 'Invalid guild name format.',
   CONTENT_TOO_LONG: 'Content exceeds maximum length of {maxLength} characters.',

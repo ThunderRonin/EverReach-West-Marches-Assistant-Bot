@@ -34,6 +34,12 @@ DISCORD_CLIENT_ID=your_application_id_here
 # Your Discord server/guild ID (Right-click server → Copy Server ID)
 GUILD_ID_DEV=your_guild_id_here
 
+# Discord user ID of the bot owner for global admin privileges
+BOT_OWNER_ID=your_discord_user_id_here
+
+# Role name for Dungeon Masters in Discord servers (default: "Dungeon Master")
+DM_ROLE_NAME="Dungeon Master"
+
 # ============================================
 # Startup Notification (OPTIONAL)
 # ============================================
@@ -44,20 +50,22 @@ GUILD_ID_DEV=your_guild_id_here
 # ============================================
 # Database Configuration (REQUIRED)
 # ============================================
-# SQLite database location (default is fine for local development)
-DATABASE_URL="file:./prisma/data/database.db"
+# PostgreSQL database connection string
+DATABASE_URL="postgresql://everreach:everreach_secret@localhost:5432/everreach?schema=public"
 
 # ============================================
 # Environment (REQUIRED)
 # ============================================
 # Options: development, production
 NODE_ENV=development
+PORT=3000
 
 # ============================================
 # AI Embeddings (OPTIONAL)
 # ============================================
 # Only needed if you want semantic search in notes feature
 # Get API key from https://platform.openai.com/api-keys
+# EMBEDDING_DIM=384
 # EMBEDDING_API_URL=https://api.openai.com/v1/embeddings
 # EMBEDDING_API_KEY=your_openai_api_key_here
 ```
@@ -137,9 +145,12 @@ NODE_ENV=development
 DISCORD_TOKEN=MTk4NjIyNDgzNDcxOTI1MjQ4.GK7cCv.dQw4w9WgXcQ
 DISCORD_CLIENT_ID=1234567890123456789
 GUILD_ID_DEV=9876543210987654321
+BOT_OWNER_ID=123456789012345678
+DM_ROLE_NAME="Dungeon Master"
 STARTUP_CHANNEL_ID=1111111111111111111
-DATABASE_URL="file:./prisma/data/database.db"
+DATABASE_URL="postgresql://everreach:everreach_secret@localhost:5432/everreach?schema=public"
 NODE_ENV=development
+PORT=3000
 ```
 
 **Note**: These are example values - they won't work. Use your actual values from Discord Developer Portal.
@@ -166,6 +177,7 @@ git status  # .env should NOT appear
 ## Related Documentation
 
 - **[DISCORD_SETUP.md](./DISCORD_SETUP.md)** - Complete Discord setup guide
+- **[DM_PERMISSIONS_GUIDE.md](./DM_PERMISSIONS_GUIDE.md)** - Dungeon Master role & admin permissions guide
 - **[TESTING_GUIDE.md](./TESTING_GUIDE.md)** - How to test the bot
 - **[PROJECT_SUMMARY.md](./PROJECT_SUMMARY.md)** - Deployment overview
 

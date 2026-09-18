@@ -35,7 +35,7 @@ import { PermissionsModule } from 'src/permissions/permissions.module';
     TradeModule,
     AuctionModule,
     NotesModule,
-    PermissionsModule
+    PermissionsModule,
   ],
   providers: [
     // Client provider (must be before other listeners/commands)

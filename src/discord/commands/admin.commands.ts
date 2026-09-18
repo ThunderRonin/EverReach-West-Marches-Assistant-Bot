@@ -11,10 +11,7 @@ import { IsString, IsInt, Min, Max, Length } from 'class-validator';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { PrismaService } from '../../db/prisma.service';
 import { DungeonMasterGuard } from '../guards/dungeon-master.guard';
-import {
-  ItemNotFoundError,
-  DomainError,
-} from '../../core/errors/errors';
+import { ItemNotFoundError } from '../../core/errors/errors';
 
 const AdminCommand = createCommandGroupDecorator({
   name: 'admin',
@@ -278,7 +275,9 @@ export class AdminCommands {
         embed.setDescription('No items in the game yet!');
       } else {
         const itemList = items
-          .map((item) => `**${item.name}** (${item.key}) - ${item.baseValue} gold`)
+          .map(
+            (item) => `**${item.name}** (${item.key}) - ${item.baseValue} gold`,
+          )
           .join('\n');
 
         embed.addFields({
@@ -324,18 +323,23 @@ export class AdminCommands {
       this.logger.log('[dm-list] Interaction deferred');
 
       const guild = interaction.guild;
-      this.logger.log(`[dm-list] Fetching members from guild ${interaction.guildId}`);
-      
+      this.logger.log(
+        `[dm-list] Fetching members from guild ${interaction.guildId}`,
+      );
+
       try {
         // Fetch members with timeout
         const members = await Promise.race([
           guild.members.fetch(),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Member fetch timeout after 10 seconds')), 10000)
+            setTimeout(
+              () => reject(new Error('Member fetch timeout after 10 seconds')),
+              10000,
+            ),
           ),
         ]);
         this.logger.log(`[dm-list] Fetched ${members.size} members`);
-        
+
         // Find members with roles that contain "master" or "dm" (case-insensitive)
         const dmMembers = members.filter((member) =>
           member.roles.cache.some(
@@ -346,7 +350,9 @@ export class AdminCommands {
           ),
         );
 
-        this.logger.log(`[dm-list] Found ${dmMembers.size} members with DM role`);
+        this.logger.log(
+          `[dm-list] Found ${dmMembers.size} members with DM role`,
+        );
 
         const embed = new EmbedBuilder()
           .setTitle('👑 Dungeon Masters')
@@ -375,7 +381,9 @@ export class AdminCommands {
         const embed = new EmbedBuilder()
           .setTitle('❌ Error')
           .setColor('#ff0000')
-          .setDescription(`Failed to fetch members: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}. Make sure the bot has "Read Members" permission.`);
+          .setDescription(
+            `Failed to fetch members: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}. Make sure the bot has "Read Members" permission.`,
+          );
         return interaction.editReply({ embeds: [embed] });
       }
     } catch (error) {
@@ -395,7 +403,10 @@ export class AdminCommands {
           return interaction.reply({ embeds: [embed], ephemeral: true });
         }
       } catch (replyError) {
-        this.logger.error('[dm-list] Failed to send error response:', replyError);
+        this.logger.error(
+          '[dm-list] Failed to send error response:',
+          replyError,
+        );
         throw replyError;
       }
     }

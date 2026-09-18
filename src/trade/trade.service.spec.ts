@@ -31,6 +31,7 @@ describe('TradeService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     character: {
       findUnique: jest.fn(),
@@ -38,6 +39,7 @@ describe('TradeService', () => {
     },
     inventory: {
       find: jest.fn(),
+      update: jest.fn(),
       upsert: jest.fn(),
     },
     txLog: {
@@ -75,8 +77,6 @@ describe('TradeService', () => {
         data: expect.objectContaining({
           fromCharId: 1,
           toCharId: 2,
-          offerFrom: JSON.stringify({ items: [], gold: 0 }),
-          offerTo: JSON.stringify({ items: [], gold: 0 }),
           expiresAt: expect.any(Date),
         }),
       });
@@ -136,13 +136,15 @@ describe('TradeService', () => {
         const mockTx = {
           trade: {
             findUnique: jest.fn().mockResolvedValue(mockTrade),
-            update: jest.fn(),
+            update: jest.fn().mockResolvedValue(mockTrade),
           },
           character: {
             findUnique: jest.fn().mockResolvedValue(mockCharacter),
+            update: jest.fn().mockResolvedValue(mockCharacter),
           },
           inventory: {
             find: jest.fn().mockReturnValue({ qty: 10 }),
+            update: jest.fn(),
             upsert: jest.fn(),
           },
           txLog: {
@@ -195,17 +197,44 @@ describe('TradeService', () => {
     });
   });
 
+  describe('cancelTrade', () => {
+    it('should successfully cancel a pending trade', async () => {
+      mockPrismaService.trade.findUnique.mockResolvedValue(mockTrade);
+      mockPrismaService.trade.update.mockResolvedValue({
+        ...mockTrade,
+        status: 'CANCELLED',
+      });
+
+      const result = await service.cancelTrade(1, 1);
+
+      expect(result.status).toBe('CANCELLED');
+      expect(mockPrismaService.trade.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { status: 'CANCELLED' },
+      });
+    });
+
+    it('should reject cancelling a trade by non-participant', async () => {
+      mockPrismaService.trade.findUnique.mockResolvedValue(mockTrade);
+
+      await expect(service.cancelTrade(1, 99)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
   describe('cleanupExpiredTrades', () => {
     it('should cleanup expired trades', async () => {
-      const expiredTrades = [mockTrade];
-      mockPrismaService.trade.findMany.mockResolvedValue(expiredTrades);
-      mockPrismaService.trade.update.mockResolvedValue({});
+      mockPrismaService.trade.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.cleanupExpiredTrades();
 
       expect(result).toBe(1);
-      expect(mockPrismaService.trade.update).toHaveBeenCalledWith({
-        where: { id: mockTrade.id },
+      expect(mockPrismaService.trade.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: 'PENDING',
+          expiresAt: { lt: expect.any(Date) },
+        },
         data: { status: 'EXPIRED' },
       });
     });

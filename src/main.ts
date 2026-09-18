@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
+import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
 import { PrismaService } from './db/prisma.service';
 import {
@@ -15,6 +16,9 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
 
+    // Wire class-validator to use NestJS dependency injection container
+    useContainer(app.select(AppModule), { fallbackOnErrors: true });
+
     // Add global validation pipe for class-validator
     app.useGlobalPipes(
       new ValidationPipe({
@@ -28,10 +32,7 @@ async function bootstrap() {
     );
 
     // Register global exception filters (order matters - more specific first)
-    app.useGlobalFilters(
-      new DomainErrorFilter(),
-      new GlobalExceptionFilter(),
-    );
+    app.useGlobalFilters(new DomainErrorFilter(), new GlobalExceptionFilter());
 
     // Initialize Prisma
     const prismaService = app.get(PrismaService);

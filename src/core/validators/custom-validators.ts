@@ -179,7 +179,9 @@ export function AuctionExists(validationOptions?: ValidationOptions) {
  */
 @ValidatorConstraint({ name: 'hasSufficientGold', async: true })
 @Injectable()
-export class HasSufficientGoldConstraint implements ValidatorConstraintInterface {
+export class HasSufficientGoldConstraint
+  implements ValidatorConstraintInterface
+{
   constructor(private readonly prisma: PrismaService) {}
 
   async validate(
@@ -190,8 +192,11 @@ export class HasSufficientGoldConstraint implements ValidatorConstraintInterface
       return false;
     }
 
-    const amountField = args.constraints[0] || 'amount';
-    const amount = args.object[amountField];
+    const constraints = (args.constraints || []) as unknown[];
+    const amountField =
+      typeof constraints[0] === 'string' ? constraints[0] : 'amount';
+    const obj = args.object as Record<string, unknown>;
+    const amount = obj[amountField];
 
     if (typeof amount !== 'number' || amount <= 0) {
       return false;
@@ -205,7 +210,15 @@ export class HasSufficientGoldConstraint implements ValidatorConstraintInterface
   }
 
   defaultMessage(args: ValidationArguments): string {
-    const amount = args.object[args.constraints[0] || 'amount'];
+    const constraints = (args.constraints || []) as unknown[];
+    const amountField =
+      typeof constraints[0] === 'string' ? constraints[0] : 'amount';
+    const obj = args.object as Record<string, unknown>;
+    const rawAmount = obj[amountField];
+    const amount =
+      typeof rawAmount === 'number' || typeof rawAmount === 'string'
+        ? String(rawAmount)
+        : 'unknown';
     return `Character does not have sufficient gold (needs ${amount})`;
   }
 }
@@ -234,7 +247,9 @@ export function HasSufficientGold(
  */
 @ValidatorConstraint({ name: 'hasSufficientItems', async: true })
 @Injectable()
-export class HasSufficientItemsConstraint implements ValidatorConstraintInterface {
+export class HasSufficientItemsConstraint
+  implements ValidatorConstraintInterface
+{
   constructor(private readonly prisma: PrismaService) {}
 
   async validate(
@@ -245,10 +260,14 @@ export class HasSufficientItemsConstraint implements ValidatorConstraintInterfac
       return false;
     }
 
-    const itemKeyField = args.constraints[0] || 'itemKey';
-    const quantityField = args.constraints[1] || 'quantity';
-    const itemKey = args.object[itemKeyField];
-    const quantity = args.object[quantityField];
+    const constraints = (args.constraints || []) as unknown[];
+    const itemKeyField =
+      typeof constraints[0] === 'string' ? constraints[0] : 'itemKey';
+    const quantityField =
+      typeof constraints[1] === 'string' ? constraints[1] : 'quantity';
+    const obj = args.object as Record<string, unknown>;
+    const itemKey = obj[itemKeyField];
+    const quantity = obj[quantityField];
 
     if (typeof itemKey !== 'string' || typeof quantity !== 'number') {
       return false;
@@ -275,8 +294,22 @@ export class HasSufficientItemsConstraint implements ValidatorConstraintInterfac
   }
 
   defaultMessage(args: ValidationArguments): string {
-    const itemKey = args.object[args.constraints[0] || 'itemKey'];
-    const quantity = args.object[args.constraints[1] || 'quantity'];
+    const constraints = (args.constraints || []) as unknown[];
+    const itemKeyField =
+      typeof constraints[0] === 'string' ? constraints[0] : 'itemKey';
+    const quantityField =
+      typeof constraints[1] === 'string' ? constraints[1] : 'quantity';
+    const obj = args.object as Record<string, unknown>;
+    const rawItemKey = obj[itemKeyField];
+    const itemKey =
+      typeof rawItemKey === 'string' || typeof rawItemKey === 'number'
+        ? String(rawItemKey)
+        : 'unknown';
+    const rawQty = obj[quantityField];
+    const quantity =
+      typeof rawQty === 'number' || typeof rawQty === 'string'
+        ? String(rawQty)
+        : 'unknown';
     return `Character does not have ${quantity} of item '${itemKey}'`;
   }
 }

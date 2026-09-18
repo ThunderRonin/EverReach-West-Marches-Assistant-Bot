@@ -5,8 +5,9 @@ import {
   Subcommand,
   Options,
   StringOption,
+  IntegerOption,
 } from 'necord';
-import { IsString, Length, MaxLength } from 'class-validator';
+import { IsInt, IsString, Length, MaxLength, Min } from 'class-validator';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 import { UsersService } from '../../users/users.service';
 import { NotesService } from '../../notes/notes.service';
@@ -39,6 +40,18 @@ export class NoteSearchDto {
   @IsString()
   @MaxLength(500)
   query: string;
+}
+
+export class NoteDeleteDto {
+  @IntegerOption({
+    name: 'id',
+    description: 'Note ID to delete',
+    required: true,
+    min_value: 1,
+  })
+  @IsInt()
+  @Min(1)
+  id: number;
 }
 
 @Injectable()
@@ -91,6 +104,73 @@ export class NoteCommands {
     embed.addFields({ name: 'Preview', value: preview, inline: false });
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
+  @Subcommand({
+    name: 'list',
+    description: 'List your recent notes',
+  })
+  async onNoteList(@Context() [interaction]: [CommandInteraction]) {
+    const discordId = interaction.user.id;
+    const guildId = interaction.guildId!;
+
+    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+    const notes = await this.notesService.getUserNotes(user!.id);
+
+    const embed = new EmbedBuilder()
+      .setTitle('📝 Your Notes')
+      .setColor('#0099ff');
+
+    if (notes.length === 0) {
+      embed.setDescription(
+        'You have no notes yet. Add one with `/note add <text>`!',
+      );
+    } else {
+      const noteList = notes
+        .map((note) => {
+          const date = new Date(note.createdAt).toLocaleDateString();
+          const preview =
+            note.text.length > 150
+              ? note.text.substring(0, 150) + '...'
+              : note.text;
+          return `**#${note.id}** (${date})\n${preview}`;
+        })
+        .join('\n\n');
+
+      embed.setDescription(noteList);
+      embed.setFooter({ text: `Showing ${notes.length} note(s)` });
+    }
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
+  @Subcommand({
+    name: 'delete',
+    description: 'Delete a note by ID',
+  })
+  async onNoteDelete(
+    @Context() [interaction]: [CommandInteraction],
+    @Options() { id }: NoteDeleteDto,
+  ) {
+    const discordId = interaction.user.id;
+    const guildId = interaction.guildId!;
+
+    const user = await this.usersService.getUserByDiscordId(discordId, guildId);
+    const deleted = await this.notesService.deleteNote(user!.id, id);
+
+    if (!deleted) {
+      return interaction.reply({
+        content: `❌ Note #${id} not found or does not belong to you.`,
+        ephemeral: true,
+      });
+    }
+
+    return interaction.reply({
+      content: `✅ Note #${id} has been deleted.`,
+      ephemeral: true,
+    });
   }
 
   @UseGuards(GuildOnlyGuard, CharacterExistsGuard)

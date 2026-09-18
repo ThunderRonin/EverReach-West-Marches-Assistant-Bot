@@ -37,7 +37,7 @@
 Still on the Bot page, scroll down to **"Privileged Gateway Intents"**:
 
 **Enable these intents:**
-- ✅ **Server Members Intent** (if you need member info)
+- ✅ **Server Members Intent** (**REQUIRED** - needed for Dungeon Master role verification and member fetching)
 - ✅ **Message Content Intent** (if bot needs to read messages)
 - ⚠️ **Presence Intent** (only if needed)
 
@@ -127,7 +127,24 @@ At the bottom, you'll see a **"GENERATED URL"**
 
 ---
 
-### Step 7: Configure Environment Variables
+### Step 7: Dungeon Master (DM) Role Setup
+
+The bot uses Discord's native role hierarchy for campaign administrators and DMs:
+
+1. **Create the Role in Discord**:
+   - Go to **Server Settings** (`⚙️`) → **Roles** → **Create Role**.
+   - Name it **`Dungeon Master`** (case-insensitive).
+   - Assign the role to your campaign's Dungeon Masters.
+2. **Configure Bot Owner (Superadmin)**:
+   - In Discord, right-click your own user profile → **Copy User ID**.
+   - Add this ID as `BOT_OWNER_ID` in your `.env` file (gives global DM command permissions anywhere, including DMs).
+3. **Customize Role Name (Optional)**:
+   - If your server uses a different role name (e.g., "Game Master" or "DM"), set `DM_ROLE_NAME="Game Master"` in `.env`.
+4. **See Full Guide**: For detailed instructions and security architecture, refer to [DM_PERMISSIONS_GUIDE.md](./DM_PERMISSIONS_GUIDE.md).
+
+---
+
+### Step 8: Configure Environment Variables
 
 Create or update your `.env` file in the project root:
 
@@ -137,13 +154,15 @@ Create or update your `.env` file in the project root:
 DISCORD_TOKEN=YOUR_BOT_TOKEN_HERE
 DISCORD_CLIENT_ID=YOUR_APPLICATION_ID_HERE
 GUILD_ID_DEV=YOUR_SERVER_ID_HERE
+BOT_OWNER_ID=YOUR_USER_ID_HERE
+DM_ROLE_NAME="Dungeon Master"
 
 # Optional: Startup Notification Channel
 # Bot will send a message here when it starts (great for monitoring!)
 STARTUP_CHANNEL_ID=YOUR_CHANNEL_ID_HERE
 
-# Database
-DATABASE_URL="file:./prisma/data/database.db"
+# PostgreSQL Database Configuration
+DATABASE_URL="postgresql://everreach:everreach_secret@localhost:5432/everreach?schema=public"
 
 # Environment
 NODE_ENV=development
@@ -161,7 +180,7 @@ NODE_ENV=development
 
 ---
 
-### Step 8: Start Your Bot
+### Step 9: Start Your Bot
 
 ```bash
 # Install dependencies (if not done)
@@ -189,7 +208,7 @@ yarn dev
 
 ---
 
-### Step 9: Verify Bot is Online
+### Step 10: Verify Bot is Online
 
 1. **Check Discord Server:**
    - Bot should now show as **ONLINE** (green dot)
@@ -210,18 +229,19 @@ yarn dev
    - Type `/` in any channel
    - You should see your bot's commands in the list
    - Commands should include:
-     - `/register`
-     - `/inv`
-     - `/shop`
-     - `/buy`
-     - `/history`
-     - `/trade`
-     - `/auction`
-     - `/note`
+     - `/register` - Register a character
+     - `/inv` - View inventory and gold
+     - `/shop` - Browse the shop
+     - `/buy` - Purchase an item from the shop
+     - `/history` - View transaction logs
+     - `/trade` - Player-to-player trade system (`start`, `offer`, `accept`, `cancel`)
+     - `/auction` - Item auction system (`create`, `bid`, `view`, `list`)
+     - `/note` - Personal notes system (`add`, `search`, `list`, `delete`)
+     - `/admin` - DM/Admin commands (`item-add`, `item-update`, `item-delete`, `item-list`, `dm-list`)
 
 4. **Test a Command:**
    ```
-   /register TestCharacter
+   /register name:TestCharacter
    ```
    - Bot should respond (might be ephemeral - only you see it)
 
@@ -324,9 +344,12 @@ Before starting bot, verify:
 
 - [ ] Discord application created
 - [ ] Bot added to application
+- [ ] **Privileged Gateway Intents**: "Server Members Intent" enabled in Developer Portal
 - [ ] Bot token copied
 - [ ] Application ID copied
 - [ ] Server/Guild ID copied
+- [ ] Bot owner Discord ID copied (`BOT_OWNER_ID`)
+- [ ] "Dungeon Master" role created in Discord server and assigned to DMs
 - [ ] Bot invited with correct permissions (bot + applications.commands)
 - [ ] `.env` file created with all values
 - [ ] Dependencies installed (`yarn install`)

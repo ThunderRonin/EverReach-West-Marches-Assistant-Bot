@@ -14,9 +14,8 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  Inject,
 } from '@nestjs/common';
-import { Interaction, BaseInteraction } from 'discord.js';
+import { BaseInteraction } from 'discord.js';
 import {
   COMMAND_RATE_LIMITS,
   RATE_LIMIT_CONFIG,
@@ -32,15 +31,18 @@ const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 /**
  * Cleanup old entries periodically
  */
-const cleanupInterval = setInterval(() => {
-  const now = Date.now();
+const cleanupInterval = setInterval(
+  () => {
+    const now = Date.now();
 
-  rateLimitStore.forEach((value, key) => {
-    if (value.resetTime < now) {
-      rateLimitStore.delete(key);
-    }
-  });
-}, 2 * 60 * 1000); // Every 2 minutes
+    rateLimitStore.forEach((value, key) => {
+      if (value.resetTime < now) {
+        rateLimitStore.delete(key);
+      }
+    });
+  },
+  2 * 60 * 1000,
+); // Every 2 minutes
 
 /**
  * Cleanup on process exit
@@ -53,13 +55,13 @@ if (typeof process !== 'undefined') {
  * Build command name from Discord interaction
  */
 function getCommandName(interaction: BaseInteraction): string {
-  if (!('commandName' in interaction)) {
+  if (!interaction.isChatInputCommand()) {
     return 'unknown';
   }
 
-  const commandName = (interaction as any).commandName || '';
-  const subcommandGroup = 'subcommandGroup' in interaction ? (interaction as any).subcommandGroup : null;
-  const subcommand = 'options' in interaction ? (interaction as any).options?.getSubcommand?.(false) : null;
+  const commandName = interaction.commandName;
+  const subcommandGroup = interaction.options.getSubcommandGroup(false);
+  const subcommand = interaction.options.getSubcommand(false);
 
   if (subcommandGroup && subcommand) {
     return `${commandName} ${subcommandGroup} ${subcommand}`;
@@ -78,7 +80,7 @@ function getCommandName(interaction: BaseInteraction): string {
 function getRateLimitTier(commandName: string): string | null {
   // Direct match first
   if (commandName in COMMAND_RATE_LIMITS) {
-    return COMMAND_RATE_LIMITS[commandName as keyof typeof COMMAND_RATE_LIMITS];
+    return COMMAND_RATE_LIMITS[commandName];
   }
 
   // Try partial matching for subcommands
@@ -94,7 +96,10 @@ function getRateLimitTier(commandName: string): string | null {
 /**
  * Check if user is in bypass list
  */
-function isUserBypassedForCommand(userId: string, commandName: string): boolean {
+function isUserBypassedForCommand(
+  userId: string,
+  commandName: string,
+): boolean {
   // Check if user is in global bypass list
   if (RATE_LIMIT_BYPASS.bypassUserIds?.includes(userId)) {
     return true;
@@ -110,7 +115,9 @@ function isUserBypassedForCommand(userId: string, commandName: string): boolean 
     commandName.includes('profile');
 
   if (isReadOnlyCommand) {
-    return RATE_LIMIT_BYPASS.readOnlyOperations.some((op) => commandName.includes(op));
+    return RATE_LIMIT_BYPASS.readOnlyOperations.some((op) =>
+      commandName.includes(op),
+    );
   }
 
   return false;
@@ -119,7 +126,11 @@ function isUserBypassedForCommand(userId: string, commandName: string): boolean 
 /**
  * Get key for rate limit tracking
  */
-function getRateLimitKey(userId: string, commandName: string, tier: string): string {
+function getRateLimitKey(
+  userId: string,
+  commandName: string,
+  tier: string,
+): string {
   // Guild-wide commands are tracked per guild
   if (tier === 'GUILD_WIDE') {
     return `guild:${userId}:${commandName}`;
@@ -156,7 +167,11 @@ function checkRateLimit(
       resetTime: now + config.windowMs,
     };
     rateLimitStore.set(key, entry);
-    return { limited: false, resetTime: entry.resetTime, remaining: config.maxRequests - 1 };
+    return {
+      limited: false,
+      resetTime: entry.resetTime,
+      remaining: config.maxRequests - 1,
+    };
   }
 
   // Check if limit exceeded
@@ -185,20 +200,20 @@ function checkRateLimit(
 export class RateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     try {
-      const args = (context.switchToRpc() as any).getArgs?.() || [];
-      const interaction = args[0];
+      const args = context.getArgs<unknown[]>();
+      const interaction = args[0] as BaseInteraction | undefined;
 
       // Skip if not a valid Discord interaction
       if (!interaction || !('user' in interaction)) {
         return true;
       }
 
-      const userId = (interaction as BaseInteraction).user?.id;
+      const userId = interaction.user?.id;
       if (!userId) {
         return true;
       }
 
-      const commandName = getCommandName(interaction as BaseInteraction);
+      const commandName = getCommandName(interaction);
 
       // Check if user is bypassed
       if (isUserBypassedForCommand(userId, commandName)) {
@@ -213,7 +228,11 @@ export class RateLimitGuard implements CanActivate {
       }
 
       // Check rate limit
-      const { limited, resetTime, remaining } = checkRateLimit(userId, commandName, tier);
+      const { limited, resetTime, remaining } = checkRateLimit(
+        userId,
+        commandName,
+        tier,
+      );
 
       if (limited) {
         const now = Date.now();
@@ -332,15 +351,6 @@ export function getRateLimitStats() {
   const now = Date.now();
 
   rateLimitStore.forEach((entry, key) => {
-    // Determine tier from key (this is a heuristic)
-    let tier = 'UNKNOWN';
-    if (key.startsWith('guild:')) {
-      tier = 'GUILD_WIDE';
-    } else {
-      // Would need more context to determine, default to STANDARD
-      tier = 'STANDARD';
-    }
-
     stats.entries.push({
       key,
       count: entry.count,

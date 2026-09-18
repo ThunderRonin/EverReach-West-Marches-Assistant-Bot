@@ -7,7 +7,7 @@ import { EconomyService } from '../../economy/economy.service';
 import { CHARACTER_CONFIG } from '../../config/game.constants';
 import { GuildOnlyGuard } from '../guards/guild-only.guard';
 import { CharacterExistsGuard } from '../guards/character-exists.guard';
-import { TxLogPayloadSchema, type TxLogPayload } from '../../config/validation.schemas';
+import { TxLogPayloadSchema } from '../../config/validation.schemas';
 
 export class RegisterDto {
   @StringOption({
@@ -16,10 +16,7 @@ export class RegisterDto {
     required: true,
   })
   @IsString()
-  @Length(
-    CHARACTER_CONFIG.MIN_NAME_LENGTH,
-    CHARACTER_CONFIG.MAX_NAME_LENGTH,
-  )
+  @Length(CHARACTER_CONFIG.MIN_NAME_LENGTH, CHARACTER_CONFIG.MAX_NAME_LENGTH)
   name: string;
 }
 
@@ -48,28 +45,29 @@ export class UserCommands {
       });
     }
 
-    const user = await this.usersService.findOrCreateUser(
+    const existingUser = await this.usersService.getUserByDiscordId(
       discordId,
       guildId,
-      name,
     );
 
-    if (user?.character) {
-      if (user.character.name === name) {
+    if (existingUser?.character) {
+      if (existingUser.character.name.toLowerCase() === name.toLowerCase()) {
         return interaction.reply({
-          content: `Welcome back, ${name}! Your character is ready to go.`,
+          content: `Welcome back, ${existingUser.character.name}! Your character is ready to go.`,
           ephemeral: true,
         });
       } else {
         return interaction.reply({
-          content: `You already have a character named "${user.character.name}". Use a different name or contact a GM to change it.`,
+          content: `You already have a character named "${existingUser.character.name}". Use a different name or contact a GM to change it.`,
           ephemeral: true,
         });
       }
     }
 
+    await this.usersService.findOrCreateUser(discordId, guildId, name);
+
     return interaction.reply({
-      content: `Character "${name}" has been created! You start with 100 gold. Use \`/inv\` to see your inventory.`,
+      content: `Character "${name}" has been created! You start with ${CHARACTER_CONFIG.STARTING_GOLD} gold. Use \`/inv\` to see your inventory.`,
       ephemeral: true,
     });
   }

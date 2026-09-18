@@ -51,7 +51,11 @@ export class NotesService implements OnModuleInit {
         data: {
           userId,
           text,
-          embedding: Buffer.from(embedding.buffer),
+          embedding: Buffer.from(
+            embedding.buffer,
+            embedding.byteOffset,
+            embedding.byteLength,
+          ),
         },
       });
 
@@ -77,7 +81,11 @@ export class NotesService implements OnModuleInit {
     }
   }
 
-  async searchNotes(userId: number, query: string, topK = NOTES_CONFIG.DEFAULT_SEARCH_TOP_K) {
+  async searchNotes(
+    userId: number,
+    query: string,
+    topK = NOTES_CONFIG.DEFAULT_SEARCH_TOP_K,
+  ) {
     try {
       const userNotes = this.userNotes.get(userId);
       if (!userNotes || userNotes.length === 0) {
@@ -96,13 +104,47 @@ export class NotesService implements OnModuleInit {
       return similarities.slice(0, topK).map((result) => ({
         id: result.note.id,
         text: result.note.text,
-        similarity: result.similarity,
+        similarity: Math.max(0, Math.min(1, result.similarity)),
         createdAt: result.note.createdAt,
       }));
     } catch (error) {
       this.logger.error('Error searching notes:', error);
       throw error;
     }
+  }
+
+  async getUserNotes(userId: number, limit = 20) {
+    return this.prisma.note.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
+  async deleteNote(userId: number, noteId: number): Promise<boolean> {
+    const existing = await this.prisma.note.findFirst({
+      where: { id: noteId, userId },
+    });
+
+    if (!existing) {
+      return false;
+    }
+
+    await this.prisma.note.delete({
+      where: { id: noteId },
+    });
+
+    // Remove from in-memory cache
+    const cached = this.userNotes.get(userId);
+    if (cached) {
+      this.userNotes.set(
+        userId,
+        cached.filter((n) => n.id !== noteId),
+      );
+    }
+
+    this.logger.log(`Deleted note ${noteId} for user ${userId}`);
+    return true;
   }
 
   private async loadAllNotes() {
@@ -113,7 +155,11 @@ export class NotesService implements OnModuleInit {
 
       for (const note of notes) {
         const embedding = note.embedding
-          ? new Float32Array(note.embedding.buffer)
+          ? new Float32Array(
+              note.embedding.buffer,
+              note.embedding.byteOffset,
+              note.embedding.byteLength / Float32Array.BYTES_PER_ELEMENT,
+            )
           : null;
 
         if (embedding) {

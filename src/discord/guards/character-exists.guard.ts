@@ -17,7 +17,10 @@ export class CharacterExistsGuard implements CanActivate {
   constructor(private readonly usersService: UsersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const interaction = context.switchToHttp().getRequest<CommandInteraction>();
+    const args = context.getArgs<unknown[]>();
+    const interaction = args[0] as
+      | (CommandInteraction & { character?: unknown })
+      | undefined;
 
     // Guard for Necord Discord interactions
     if (!interaction || typeof interaction.reply !== 'function') {
@@ -28,7 +31,9 @@ export class CharacterExistsGuard implements CanActivate {
     const guildId = interaction.guildId;
 
     if (!guildId) {
-      throw new BadRequestException('This command can only be used in a server.');
+      throw new BadRequestException(
+        'This command can only be used in a server.',
+      );
     }
 
     const user = await this.usersService.getUserByDiscordId(discordId, guildId);
@@ -40,7 +45,7 @@ export class CharacterExistsGuard implements CanActivate {
     }
 
     // Attach character to request for use in command handler
-    (context.switchToHttp().getRequest() as any).character = user.character;
+    interaction.character = user.character;
 
     return true;
   }

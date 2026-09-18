@@ -10,8 +10,12 @@ describe('Sanitization Utils', () => {
     it('should accept valid item keys', () => {
       expect(sanitization.sanitizeItemKey('sword')).toBe('sword');
       expect(sanitization.sanitizeItemKey('SWORD')).toBe('sword');
-      expect(sanitization.sanitizeItemKey('sword_of_fire')).toBe('sword_of_fire');
-      expect(sanitization.sanitizeItemKey('gold_coin_100')).toBe('gold_coin_100');
+      expect(sanitization.sanitizeItemKey('sword_of_fire')).toBe(
+        'sword_of_fire',
+      );
+      expect(sanitization.sanitizeItemKey('gold_coin_100')).toBe(
+        'gold_coin_100',
+      );
     });
 
     it('should trim whitespace', () => {
@@ -45,20 +49,28 @@ describe('Sanitization Utils', () => {
   describe('sanitizeCharacterName', () => {
     it('should accept valid character names', () => {
       expect(sanitization.sanitizeCharacterName('Legolas')).toBe('Legolas');
-      expect(sanitization.sanitizeCharacterName('John Smith')).toBe('John Smith');
+      expect(sanitization.sanitizeCharacterName('John Smith')).toBe(
+        'John Smith',
+      );
       expect(sanitization.sanitizeCharacterName("O'Brien")).toBe("O'Brien");
-      expect(sanitization.sanitizeCharacterName('Jean-Claude')).toBe('Jean-Claude');
+      expect(sanitization.sanitizeCharacterName('Jean-Claude')).toBe(
+        'Jean-Claude',
+      );
     });
 
     it('should trim whitespace', () => {
       expect(sanitization.sanitizeCharacterName('  Legolas  ')).toBe('Legolas');
-      expect(sanitization.sanitizeCharacterName('\n Legolas \n')).toBe('Legolas');
+      expect(sanitization.sanitizeCharacterName('\n Legolas \n')).toBe(
+        'Legolas',
+      );
     });
 
     it('should reject names with special characters', () => {
       expect(() => sanitization.sanitizeCharacterName('Legolas@')).toThrow();
       expect(() => sanitization.sanitizeCharacterName('Legolas#123')).toThrow();
-      expect(() => sanitization.sanitizeCharacterName('Legolas<script>')).toThrow();
+      expect(() =>
+        sanitization.sanitizeCharacterName('Legolas<script>'),
+      ).toThrow();
     });
 
     it('should reject names that are too long', () => {
@@ -115,17 +127,23 @@ describe('Sanitization Utils', () => {
 
     it('should trim whitespace', () => {
       const result = sanitization.sanitizeNoteContent('  note content  ');
-      expect(result).not.toMatch(/^  /);
-      expect(result).not.toMatch(/  $/);
+      expect(result).not.toMatch(/^ {2}/);
+      expect(result).not.toMatch(/ {2}$/);
     });
   });
 
   describe('sanitizeGuildName', () => {
     it('should accept valid guild names', () => {
       expect(sanitization.sanitizeGuildName('The Eagles')).toBe('The Eagles');
-      expect(sanitization.sanitizeGuildName('Dragon-Slayers')).toBe('Dragon-Slayers');
-      expect(sanitization.sanitizeGuildName("King's Guard")).toBe("King's Guard");
-      expect(sanitization.sanitizeGuildName('Smith & Sons')).toBe('Smith & Sons');
+      expect(sanitization.sanitizeGuildName('Dragon-Slayers')).toBe(
+        'Dragon-Slayers',
+      );
+      expect(sanitization.sanitizeGuildName("King's Guard")).toBe(
+        "King's Guard",
+      );
+      expect(sanitization.sanitizeGuildName('Smith & Sons')).toBe(
+        'Smith & Sons',
+      );
     });
 
     it('should trim whitespace', () => {
@@ -170,9 +188,11 @@ describe('Sanitization Utils', () => {
     });
 
     it('should handle non-string inputs gracefully', () => {
-      expect(sanitization.sanitizeString(null as any)).toBe('');
-      expect(sanitization.sanitizeString(undefined as any)).toBe('');
-      expect(sanitization.sanitizeString(123 as any)).toBe('');
+      expect(sanitization.sanitizeString(null as unknown as string)).toBe('');
+      expect(sanitization.sanitizeString(undefined as unknown as string)).toBe(
+        '',
+      );
+      expect(sanitization.sanitizeString(123 as unknown as string)).toBe('');
     });
   });
 
@@ -272,7 +292,9 @@ describe('Sanitization Utils', () => {
     });
 
     it('should reject SQL injection attempts', () => {
-      expect(sanitization.isSafeString("'; DROP TABLE users--", safePattern)).toBe(false);
+      expect(
+        sanitization.isSafeString("'; DROP TABLE users--", safePattern),
+      ).toBe(false);
       expect(sanitization.isSafeString('1 OR 1=1', safePattern)).toBe(false);
     });
 
@@ -302,7 +324,9 @@ describe('Sanitization Utils', () => {
     });
 
     it('should remove all XSS characters', () => {
-      const result = sanitization.removeUnsafeCharacters('<script>alert(1)</script>');
+      const result = sanitization.removeUnsafeCharacters(
+        '<script>alert(1)</script>',
+      );
       expect(result).not.toContain('<');
       expect(result).not.toContain('>');
       expect(result).not.toContain('(');
@@ -332,14 +356,14 @@ describe('Sanitization Utils', () => {
     it('should prevent DOM-based XSS', () => {
       const xssAttempt = 'javascript:alert(1)';
       // isSafeString expects a pattern - use a pattern that matches valid strings
-      const validPattern = /^[a-zA-Z0-9_\-]*$/;
+      const validPattern = /^[a-zA-Z0-9_-]*$/;
       expect(sanitization.isSafeString(xssAttempt, validPattern)).toBe(false);
     });
 
     it('should prevent CSS injection', () => {
       const cssInjection = 'expression(alert(1))';
       // isSafeString expects a pattern - use a pattern that matches valid strings
-      const validPattern = /^[a-zA-Z0-9_\-]*$/;
+      const validPattern = /^[a-zA-Z0-9_-]*$/;
       expect(sanitization.isSafeString(cssInjection, validPattern)).toBe(false);
     });
 

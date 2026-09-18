@@ -13,7 +13,6 @@ import {
   ExecutionContext,
   CallHandler,
   BadRequestException,
-  createParamDecorator,
   SetMetadata,
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
@@ -46,28 +45,32 @@ const throttleStore = new Map<string, Map<string, number[]>>();
  * Cleanup old timestamps from store
  * Runs every 5 minutes to prevent memory growth
  */
-const cleanupInterval = setInterval(() => {
-  const now = Date.now();
-  const staleThreshold = 1 * 60 * 1000; // 1 minute of no activity
+const cleanupInterval = setInterval(
+  () => {
+    const now = Date.now();
 
-  throttleStore.forEach((userOps, userId) => {
-    userOps.forEach((timestamps, operation) => {
-      // Remove timestamps older than 1 hour
-      const recentTimestamps = timestamps.filter((ts) => now - ts < 60 * 60 * 1000);
+    throttleStore.forEach((userOps, userId) => {
+      userOps.forEach((timestamps, operation) => {
+        // Remove timestamps older than 1 hour
+        const recentTimestamps = timestamps.filter(
+          (ts) => now - ts < 60 * 60 * 1000,
+        );
 
-      if (recentTimestamps.length === 0) {
-        userOps.delete(operation);
-      } else {
-        userOps.set(operation, recentTimestamps);
+        if (recentTimestamps.length === 0) {
+          userOps.delete(operation);
+        } else {
+          userOps.set(operation, recentTimestamps);
+        }
+      });
+
+      // Clean up empty user entries
+      if (userOps.size === 0) {
+        throttleStore.delete(userId);
       }
     });
-
-    // Clean up empty user entries
-    if (userOps.size === 0) {
-      throttleStore.delete(userId);
-    }
-  });
-}, 5 * 60 * 1000); // Every 5 minutes
+  },
+  5 * 60 * 1000,
+); // Every 5 minutes
 
 /**
  * Cleanup on process exit
@@ -154,7 +157,7 @@ export function Throttle(
 export class ThrottleInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     try {
-      const args = (context.switchToRpc() as any).getArgs?.() || [];
+      const args = context.getArgs<unknown[]>();
       const request = args?.[0];
 
       // Skip if not a Discord interaction
@@ -163,7 +166,10 @@ export class ThrottleInterceptor implements NestInterceptor {
       }
 
       const interaction = request as Interaction;
-      const throttleConfig = Reflect.getMetadata(THROTTLE_KEY, context.getHandler());
+      const throttleConfig = Reflect.getMetadata(
+        THROTTLE_KEY,
+        context.getHandler(),
+      ) as ThrottleConfig | undefined;
 
       // Skip if no throttle config
       if (!throttleConfig) {
@@ -175,8 +181,12 @@ export class ThrottleInterceptor implements NestInterceptor {
         return next.handle();
       }
 
-      const { operationName, intervalMs, maxRequests, message: errorMsg } =
-        throttleConfig as ThrottleConfig;
+      const {
+        operationName,
+        intervalMs,
+        maxRequests,
+        message: errorMsg,
+      } = throttleConfig;
 
       // Check throttle status
       const { throttled, cooldownSeconds } = isThrottled(
@@ -187,8 +197,9 @@ export class ThrottleInterceptor implements NestInterceptor {
       );
 
       if (throttled) {
-        const errorMessage = (errorMsg || 'You are performing this action too quickly.')
-          .replace('{seconds}', cooldownSeconds.toString());
+        const errorMessage = (
+          errorMsg || 'You are performing this action too quickly.'
+        ).replace('{seconds}', cooldownSeconds.toString());
 
         return throwError(
           () =>
@@ -199,10 +210,9 @@ export class ThrottleInterceptor implements NestInterceptor {
       }
 
       return next.handle().pipe(
-        catchError((error) => {
+        catchError((error: unknown) => {
           // On error, don't count this request toward throttle
           // This prevents throttle from being triggered by failures
-          const now = Date.now();
           const userOps = throttleStore.get(userId);
 
           if (userOps && userOps.has(operationName)) {
@@ -211,10 +221,12 @@ export class ThrottleInterceptor implements NestInterceptor {
             timestamps.pop();
           }
 
-          return throwError(() => error);
+          return throwError(() =>
+            error instanceof Error ? error : new Error(String(error)),
+          );
         }),
       );
-    } catch (err) {
+    } catch {
       // If anything goes wrong with throttle check, allow the request through
       return next.handle();
     }
@@ -281,7 +293,10 @@ export function getThrottleStats() {
 
     stats.users.set(userId, {
       operations,
-      entryCount: operations.reduce((sum, op) => sum + (userOps.get(op)?.length || 0), 0),
+      entryCount: operations.reduce(
+        (sum, op) => sum + (userOps.get(op)?.length || 0),
+        0,
+      ),
     });
   });
 

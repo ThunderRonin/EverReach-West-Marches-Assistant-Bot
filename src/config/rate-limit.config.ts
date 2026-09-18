@@ -14,7 +14,8 @@ export const RATE_LIMIT_CONFIG = {
   STRICT: {
     windowMs: 5000, // 5 seconds
     maxRequests: 1, // 1 request per 5 seconds
-    message: 'You are executing actions too quickly. Please wait a few seconds before trying again.',
+    message:
+      'You are executing actions too quickly. Please wait a few seconds before trying again.',
   },
 
   /**
@@ -43,7 +44,8 @@ export const RATE_LIMIT_CONFIG = {
   GUILD_WIDE: {
     windowMs: 60000, // 1 minute
     maxRequests: 100, // 100 commands per minute per guild
-    message: 'This guild has exceeded command rate limits. Please try again shortly.',
+    message:
+      'This guild has exceeded command rate limits. Please try again shortly.',
   },
 } as const;
 
@@ -82,7 +84,10 @@ export const OPERATION_THROTTLE_LIMITS = {
  * Command classification for rate limiting
  * Maps Discord slash commands to their rate limit tier
  */
-export const COMMAND_RATE_LIMITS: Record<string, keyof typeof RATE_LIMIT_CONFIG> = {
+export const COMMAND_RATE_LIMITS: Record<
+  string,
+  keyof typeof RATE_LIMIT_CONFIG
+> = {
   // Trade commands
   'trade start': 'STRICT',
   'trade add': 'STANDARD',
@@ -97,14 +102,14 @@ export const COMMAND_RATE_LIMITS: Record<string, keyof typeof RATE_LIMIT_CONFIG>
   'auction show': 'RELAXED',
 
   // Economy commands
-  'buy': 'STANDARD',
-  'shop': 'RELAXED',
-  'balance': 'RELAXED',
+  buy: 'STANDARD',
+  shop: 'RELAXED',
+  balance: 'RELAXED',
 
   // User commands
-  'profile': 'RELAXED',
-  'inventory': 'RELAXED',
-  'register': 'STANDARD',
+  profile: 'RELAXED',
+  inventory: 'RELAXED',
+  register: 'STANDARD',
 
   // Note commands
   'note add': 'STANDARD',
@@ -116,9 +121,12 @@ export const COMMAND_RATE_LIMITS: Record<string, keyof typeof RATE_LIMIT_CONFIG>
  * Rate limit error messages
  */
 export const RATE_LIMIT_ERROR_MESSAGES = {
-  COMMAND_RATE_LIMIT_EXCEEDED: 'You are using commands too frequently. Please wait before trying again.',
-  GUILD_RATE_LIMIT_EXCEEDED: 'This server has exceeded its command rate limit. Please try again in a moment.',
-  OPERATION_THROTTLED: 'This action is on cooldown. Please wait {cooldownSeconds} seconds.',
+  COMMAND_RATE_LIMIT_EXCEEDED:
+    'You are using commands too frequently. Please wait before trying again.',
+  GUILD_RATE_LIMIT_EXCEEDED:
+    'This server has exceeded its command rate limit. Please try again in a moment.',
+  OPERATION_THROTTLED:
+    'This action is on cooldown. Please wait {cooldownSeconds} seconds.',
   INSUFFICIENT_PERMISSIONS: 'You do not have permission to use this command.',
 } as const;
 

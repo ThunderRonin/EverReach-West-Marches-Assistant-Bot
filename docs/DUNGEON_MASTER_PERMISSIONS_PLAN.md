@@ -2,9 +2,9 @@
 goal: Implement Dungeon Master role-based permission system using Discord roles
 version: 2.0
 date_created: 2025-10-23
-last_updated: 2025-10-23
+last_updated: 2026-09-18
 owner: ThunderRonin
-status: 'Planned'
+status: 'Completed'
 tags: [feature, permissions, admin, architecture, discord-roles]
 ---
 
@@ -59,11 +59,11 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-001 | Add `BOT_OWNER_ID` to `.env` file with bot owner's Discord ID | | |
-| TASK-002 | Add `DM_ROLE_NAME` to `.env` file (default: "Dungeon Master") | | |
-| TASK-003 | Add validation for `BOT_OWNER_ID` in environment schema | | |
-| TASK-004 | Add validation for `DM_ROLE_NAME` in environment schema | | |
-| TASK-005 | Update `ENV_TEMPLATE.md` documentation with new variables | | |
+| TASK-001 | Add `BOT_OWNER_ID` to `.env` file with bot owner's Discord ID | ✅ | 2026-09-18 |
+| TASK-002 | Add `DM_ROLE_NAME` to `.env` file (default: "Dungeon Master") | ✅ | 2026-09-18 |
+| TASK-003 | Add validation for `BOT_OWNER_ID` in environment schema | ✅ | 2026-09-18 |
+| TASK-004 | Add validation for `DM_ROLE_NAME` in environment schema | ✅ | 2026-09-18 |
+| TASK-005 | Update `ENV_TEMPLATE.md` documentation with new variables | ✅ | 2026-09-18 |
 
 ### Phase 2: Permission Service
 
@@ -71,13 +71,13 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-006 | Create `src/permissions/permissions.service.ts` | | |
-| TASK-007 | Implement `isBotOwner(discordId: string): boolean` method | | |
-| TASK-008 | Implement `hasDungeonMasterRole(member: GuildMember): boolean` method (checks for DM role) | | |
-| TASK-009 | Implement `hasAdminPermissions(interaction: CommandInteraction): Promise<boolean>` (checks owner OR DM role) | | |
-| TASK-010 | Implement `getDungeonMasters(guild: Guild): Promise<GuildMember[]>` (returns members with DM role) | | |
-| TASK-011 | Add case-insensitive role name matching | | |
-| TASK-012 | Add error handling for missing permissions and guild context | | |
+| TASK-006 | Create `src/permissions/permissions.service.ts` | ✅ | 2026-09-18 |
+| TASK-007 | Implement `isBotOwner(discordId: string): boolean` method | ✅ | 2026-09-18 |
+| TASK-008 | Implement `hasDungeonMasterRole(member: GuildMember): boolean` method (checks for DM role) | ✅ | 2026-09-18 |
+| TASK-009 | Implement `hasAdminPermissions(interaction: CommandInteraction): Promise<boolean>` (checks owner OR DM role) | ✅ | 2026-09-18 |
+| TASK-010 | Implement `getDungeonMasters(guild: Guild): Promise<GuildMember[]>` (returns members with DM role) | ✅ | 2026-09-18 |
+| TASK-011 | Add case-insensitive role name matching | ✅ | 2026-09-18 |
+| TASK-012 | Add error handling for missing permissions and guild context | ✅ | 2026-09-18 |
 
 ### Phase 3: Permission Module
 
@@ -85,10 +85,10 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-013 | Create `src/permissions/permissions.module.ts` | | |
-| TASK-014 | Export `PermissionsService` for use in other modules | | |
-| TASK-015 | Import `ConfigModule` for environment variable access | | |
-| TASK-016 | Add `PermissionsModule` to `AppModule` imports | | |
+| TASK-013 | Create `src/permissions/permissions.module.ts` | ✅ | 2026-09-18 |
+| TASK-014 | Export `PermissionsService` for use in other modules | ✅ | 2026-09-18 |
+| TASK-015 | Import `ConfigModule` for environment variable access | ✅ | 2026-09-18 |
+| TASK-016 | Add `PermissionsModule` to `AppModule` imports | ✅ | 2026-09-18 |
 
 ### Phase 4: DM Guard
 
@@ -96,12 +96,12 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-017 | Create `src/discord/guards/dungeon-master.guard.ts` | | |
-| TASK-018 | Implement `canActivate()` method that checks bot owner OR DM role | | |
-| TASK-019 | Handle guild commands: check member roles via `interaction.member` | | |
-| TASK-020 | Handle DM commands: allow bot owner, deny others | | |
-| TASK-021 | Return clear error messages when permission denied | | |
-| TASK-022 | Log security events (failed permission checks) | | |
+| TASK-017 | Create `src/discord/guards/dungeon-master.guard.ts` | ✅ | 2026-09-18 |
+| TASK-018 | Implement `canActivate()` method that checks bot owner OR DM role | ✅ | 2026-09-18 |
+| TASK-019 | Handle guild commands: check member roles via `interaction.member` | ✅ | 2026-09-18 |
+| TASK-020 | Handle DM commands: allow bot owner, deny others | ✅ | 2026-09-18 |
+| TASK-021 | Return clear error messages when permission denied | ✅ | 2026-09-18 |
+| TASK-022 | Log security events (failed permission checks) | ✅ | 2026-09-18 |
 
 ### Phase 5: Update Existing Admin Commands
 
@@ -109,11 +109,11 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-023 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-add` | | |
-| TASK-024 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-update` | | |
-| TASK-025 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-delete` | | |
-| TASK-026 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-list` | | |
-| TASK-027 | Remove old `verifyDMOnly()` method from AdminCommands | | |
+| TASK-023 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-add` | ✅ | 2026-09-18 |
+| TASK-024 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-update` | ✅ | 2026-09-18 |
+| TASK-025 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-delete` | ✅ | 2026-09-18 |
+| TASK-026 | Replace manual DM check with `@UseGuards(DungeonMasterGuard)` in `item-list` | ✅ | 2026-09-18 |
+| TASK-027 | Remove old `verifyDMOnly()` method from AdminCommands | ✅ | 2026-09-18 |
 
 ### Phase 6: DM Info Commands
 
@@ -121,10 +121,10 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-028 | Create `/admin dm-list` command (shows users with DM role in guild) | | |
-| TASK-029 | Add `@UseGuards(DungeonMasterGuard)` to dm-list command | | |
-| TASK-030 | Display role name being checked in dm-list output | | |
-| TASK-031 | Handle case where no users have DM role | | |
+| TASK-028 | Create `/admin dm-list` command (shows users with DM role in guild) | ✅ | 2026-09-18 |
+| TASK-029 | Add `@UseGuards(DungeonMasterGuard)` to dm-list command | ✅ | 2026-09-18 |
+| TASK-030 | Display role name being checked in dm-list output | ✅ | 2026-09-18 |
+| TASK-031 | Handle case where no users have DM role | ✅ | 2026-09-18 |
 
 ### Phase 7: Testing & Documentation
 
@@ -132,15 +132,15 @@ A comprehensive plan to implement role-based permissions using Discord's native 
 
 | Task | Description | Completed | Date |
 |------|-------------|-----------|------|
-| TASK-032 | Test bot owner can execute admin commands in guilds | | |
-| TASK-033 | Test bot owner can execute admin commands in DMs | | |
-| TASK-034 | Test user with DM role can execute admin commands in their guild | | |
-| TASK-035 | Test user with DM role in Server A cannot use commands in Server B | | |
-| TASK-036 | Test user without DM role cannot execute admin commands | | |
-| TASK-037 | Test permission denied messages are clear and helpful | | |
-| TASK-038 | Test case-insensitive role name matching works | | |
-| TASK-039 | Update `DISCORD_SETUP.md` with DM role setup instructions | | |
-| TASK-040 | Create `DM_PERMISSIONS_GUIDE.md` with role creation tutorial | | |
+| TASK-032 | Test bot owner can execute admin commands in guilds | ✅ | 2026-09-18 |
+| TASK-033 | Test bot owner can execute admin commands in DMs | ✅ | 2026-09-18 |
+| TASK-034 | Test user with DM role can execute admin commands in their guild | ✅ | 2026-09-18 |
+| TASK-035 | Test user with DM role in Server A cannot use commands in Server B | ✅ | 2026-09-18 |
+| TASK-036 | Test user without DM role cannot execute admin commands | ✅ | 2026-09-18 |
+| TASK-037 | Test permission denied messages are clear and helpful | ✅ | 2026-09-18 |
+| TASK-038 | Test case-insensitive role name matching works | ✅ | 2026-09-18 |
+| TASK-039 | Update `DISCORD_SETUP.md` with DM role setup instructions | ✅ | 2026-09-18 |
+| TASK-040 | Create `DM_PERMISSIONS_GUIDE.md` with role creation tutorial | ✅ | 2026-09-18 |
 
 ## 3. Alternatives
 

@@ -16,6 +16,7 @@ export const necordConfig = (): NecordModuleOptions => {
       IntentsBitField.Flags.Guilds,
       IntentsBitField.Flags.GuildMessages,
       IntentsBitField.Flags.MessageContent,
+      IntentsBitField.Flags.GuildMembers,
     ],
     development: guildId ? [guildId] : undefined,
   };

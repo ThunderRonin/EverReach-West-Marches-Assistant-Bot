@@ -79,13 +79,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Handle validation errors
     if (exception instanceof BadRequestException) {
-      const response = exception.getResponse() as any;
-      if (response.message) {
-        if (Array.isArray(response.message)) {
-          errorMessage = response.message.join(', ');
-        } else {
-          errorMessage = response.message;
+      const response = exception.getResponse();
+      if (
+        typeof response === 'object' &&
+        response !== null &&
+        'message' in response
+      ) {
+        const msg = (response as { message: unknown }).message;
+        if (Array.isArray(msg)) {
+          errorMessage = msg.map(String).join(', ');
+        } else if (typeof msg === 'string') {
+          errorMessage = msg;
         }
+      } else if (typeof response === 'string') {
+        errorMessage = response;
       }
       errorColor = [255, 170, 0]; // Orange RGB
     } else if (exception instanceof Error) {
@@ -110,11 +117,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (interaction.deferred || interaction.replied) {
       interaction.editReply(reply).catch((err) => {
-        this.logger.error('Failed to edit reply in GlobalExceptionFilter:', err);
+        this.logger.error(
+          'Failed to edit reply in GlobalExceptionFilter:',
+          err,
+        );
       });
     } else {
       interaction.reply(reply).catch((err) => {
-        this.logger.error('Failed to send reply in GlobalExceptionFilter:', err);
+        this.logger.error(
+          'Failed to send reply in GlobalExceptionFilter:',
+          err,
+        );
       });
     }
   }

@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import type { Prisma } from '@prisma/client';
+import { Client, EmbedBuilder } from 'discord.js';
 import { PrismaService } from '../db/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SYSTEM_CONFIG, AUCTION_CONFIG } from '../config/game.constants';
+import { SYSTEM_CONFIG } from '../config/game.constants';
 import {
   ItemNotFoundError,
   InsufficientItemsError,
@@ -16,22 +17,23 @@ import {
   BidNotHigherError,
 } from '../core/errors/errors';
 import {
-  AUCTION_CHECK_INTERVAL,
   AUCTION_STATUS,
   AUCTION_TRANSACTION_TYPES,
-  AUCTION_ERROR_MESSAGES,
-  AUCTION_CONSTRAINTS,
 } from '../config/auction.config';
 import {
   CreateAuctionSchema,
   PlaceBidSchema,
 } from '../config/validation.schemas';
 
-type AuctionWithRelations = Prisma.AuctionGetPayload<{
+export type AuctionWithRelations = Prisma.AuctionGetPayload<{
   include: {
     item: true;
     seller: true;
-    bidder: true;
+    bidder: {
+      include: {
+        user: true;
+      };
+    };
   };
 }>;
 
@@ -101,6 +103,11 @@ export class AuctionService {
         include: {
           item: true,
           seller: true,
+          bidder: {
+            include: {
+              user: true,
+            },
+          },
         },
       });
 
@@ -140,7 +147,11 @@ export class AuctionService {
         include: {
           item: true,
           seller: true,
-          bidder: true,
+          bidder: {
+            include: {
+              user: true,
+            },
+          },
         },
       });
 
@@ -177,12 +188,43 @@ export class AuctionService {
         throw new InsufficientGoldError();
       }
 
-      // Update auction
-      await tx.auction.update({
+      // Refund previously outbid bidder's escrowed gold
+      if (auction.currentBidderId && auction.currentBid) {
+        await tx.character.update({
+          where: { id: auction.currentBidderId },
+          data: {
+            gold: {
+              increment: auction.currentBid,
+            },
+          },
+        });
+      }
+
+      // Deduct bid gold into escrow from the new bidder
+      await tx.character.update({
+        where: { id: validated.bidderId },
+        data: {
+          gold: {
+            decrement: validated.amount,
+          },
+        },
+      });
+
+      // Update auction with new highest bid
+      const updatedAuction = await tx.auction.update({
         where: { id: validated.auctionId },
         data: {
           currentBid: validated.amount,
           currentBidderId: validated.bidderId,
+        },
+        include: {
+          item: true,
+          seller: true,
+          bidder: {
+            include: {
+              user: true,
+            },
+          },
         },
       });
 
@@ -196,9 +238,9 @@ export class AuctionService {
       });
 
       this.logger.log(
-        `Bid placed on auction ${validated.auctionId}: ${validated.amount} gold by character ${validated.bidderId}`,
+        `Bid placed on auction ${validated.auctionId}: ${validated.amount} gold by character ${validated.bidderId} (escrowed)`,
       );
-      return auction;
+      return updatedAuction;
     });
   }
 
@@ -261,7 +303,11 @@ export class AuctionService {
       include: {
         item: true,
         seller: true,
-        bidder: true,
+        bidder: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -274,7 +320,7 @@ export class AuctionService {
     }
   }
 
-  private async settleAuction(auction: AuctionWithRelations) {
+  async settleAuction(auction: AuctionWithRelations | { id: number }) {
     const settledAuction = await this.prisma.$transaction(async (tx) => {
       // Re-check auction status to avoid race conditions
       const currentAuction = await tx.auction.findUnique({
@@ -319,6 +365,7 @@ export class AuctionService {
       if (settledAuction.currentBidderId) {
         this.eventEmitter.emit('auction.sold', {
           auction: settledAuction,
+          buyer: settledAuction.bidder,
         });
       } else {
         this.eventEmitter.emit('auction.expired', {
@@ -339,12 +386,8 @@ export class AuctionService {
       return;
     }
 
-    // Transfer gold from bidder to seller
-    await tx.character.update({
-      where: { id: auction.currentBidderId },
-      data: { gold: { decrement: auction.currentBid } },
-    });
-
+    // Winner's gold was already escrowed at bid time.
+    // Transfer gold to seller
     await tx.character.update({
       where: { id: auction.sellerId },
       data: { gold: { increment: auction.currentBid } },
@@ -400,12 +443,6 @@ export class AuctionService {
         }),
       },
     });
-
-    // Emit event for Discord notification
-    this.eventEmitter.emit('auction.sold', {
-      auction,
-      buyer: auction.bidder,
-    });
   }
 
   private async refundSeller(
@@ -447,11 +484,6 @@ export class AuctionService {
         }),
       },
     });
-
-    // Emit event for Discord notification
-    this.eventEmitter.emit('auction.expired', {
-      auction,
-    });
   }
 
   /**
@@ -488,8 +520,8 @@ export class AuctionService {
    */
   async updateAuctionMessage(
     auctionId: number,
-    client: any, // Discord.js Client
-    embed: any, // EmbedBuilder
+    client: Client,
+    embed: EmbedBuilder,
   ) {
     try {
       const auctionMessage = await this.prisma.auctionMessage.findUnique({
@@ -542,10 +574,8 @@ export class AuctionService {
       await this.prisma.auctionMessage.delete({
         where: { auctionId },
       });
-    } catch (error) {
-      this.logger.debug(
-        `No message record to delete for auction ${auctionId}`,
-      );
+    } catch {
+      this.logger.debug(`No message record to delete for auction ${auctionId}`);
       // Silently fail - might not exist
     }
   }

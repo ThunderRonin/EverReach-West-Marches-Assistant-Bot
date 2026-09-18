@@ -178,7 +178,9 @@ export class RequestDeduplicationService {
       expiredEntries,
       averageAgeMs: averageAge,
       maxSize: this.config.maxCacheSize,
-      utilizationPercent: Math.round((this.cache.size / this.config.maxCacheSize) * 100),
+      utilizationPercent: Math.round(
+        (this.cache.size / this.config.maxCacheSize) * 100,
+      ),
     };
   }
 
@@ -220,7 +222,9 @@ export class RequestDeduplicationService {
     keysToDelete.forEach((key) => this.cache.delete(key));
 
     if (keysToDelete.length > 0) {
-      this.logger.debug(`🧹 Cleanup: removed ${keysToDelete.length} expired entries`);
+      this.logger.debug(
+        `🧹 Cleanup: removed ${keysToDelete.length} expired entries`,
+      );
     }
   }
 
@@ -288,7 +292,7 @@ export interface DeduplicationOptions {
  * Extract parameters from function arguments
  * Used to create reproducible idempotency keys
  */
-export function extractRequestParams(args: any[]): Record<string, unknown> {
+export function extractRequestParams(args: unknown[]): Record<string, unknown> {
   const params: Record<string, unknown> = {};
 
   if (args.length === 0) {
@@ -299,7 +303,9 @@ export function extractRequestParams(args: any[]): Record<string, unknown> {
 
   if (typeof firstArg === 'object' && firstArg !== null) {
     // Extract from object properties, excluding methods and private fields
-    for (const [key, value] of Object.entries(firstArg)) {
+    for (const [key, value] of Object.entries(
+      firstArg as Record<string, unknown>,
+    )) {
       if (!key.startsWith('_') && typeof value !== 'function') {
         params[key] = value;
       }
@@ -317,10 +323,23 @@ export function hashRequestParams(params: Record<string, unknown>): string {
   const keys = Object.keys(params).sort();
   const values = keys.map((k) => {
     const val = params[k];
-    if (typeof val === 'object') {
-      return JSON.stringify(val);
+    if (typeof val === 'string') {
+      return val;
     }
-    return String(val);
+    if (
+      typeof val === 'number' ||
+      typeof val === 'boolean' ||
+      typeof val === 'bigint'
+    ) {
+      return String(val);
+    }
+    if (val === null) {
+      return 'null';
+    }
+    if (val === undefined) {
+      return 'undefined';
+    }
+    return JSON.stringify(val);
   });
 
   let hash = 0;
@@ -338,19 +357,28 @@ export function hashRequestParams(params: Record<string, unknown>): string {
 /**
  * Create a wrapped function that handles deduplication
  */
-export function withDeduplication<T extends (...args: any[]) => Promise<unknown>>(
+export function withDeduplication<
+  T extends (...args: unknown[]) => Promise<unknown>,
+>(
   fn: T,
   service: RequestDeduplicationService,
   options: DeduplicationOptions & IdempotencyKeyOptions,
 ): T {
-  return (async (...args: any[]) => {
-    const { ttlMs, keyPrefix, ignoreParams, ...idempotencyOptions } = options;
+  return (async (...args: Parameters<T>) => {
+    const {
+      ttlMs,
+      keyPrefix,
+      ignoreParams = false,
+      ...idempotencyOptions
+    } = options;
 
     // Generate idempotency key
     const params = extractRequestParams(args);
-    const hash = hashRequestParams(params);
+    const hash = ignoreParams ? '' : hashRequestParams(params);
     const baseKey = service.generateIdempotencyKey(idempotencyOptions);
-    const finalKey = keyPrefix ? `${keyPrefix}:${baseKey}:${hash}` : `${baseKey}:${hash}`;
+    const finalKey = keyPrefix
+      ? `${keyPrefix}:${baseKey}${hash ? `:${hash}` : ''}`
+      : `${baseKey}${hash ? `:${hash}` : ''}`;
 
     // Check cache
     const cached = service.get(finalKey);
@@ -365,5 +393,5 @@ export function withDeduplication<T extends (...args: any[]) => Promise<unknown>
     service.set(finalKey, result, ttlMs);
 
     return result;
-  }) as T;
+  }) as unknown as T;
 }

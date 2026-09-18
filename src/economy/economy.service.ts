@@ -105,7 +105,7 @@ export class EconomyService {
 
   async getCharacterInventory(characterId: number) {
     return this.prisma.inventory.findMany({
-      where: { charId: characterId },
+      where: { charId: characterId, qty: { gt: 0 } },
       include: {
         item: true,
       },
@@ -117,7 +117,10 @@ export class EconomyService {
     });
   }
 
-  async getTransactionHistory(characterId: number, limit = ECONOMY_CONFIG.DEFAULT_HISTORY_LIMIT) {
+  async getTransactionHistory(
+    characterId: number,
+    limit = ECONOMY_CONFIG.DEFAULT_HISTORY_LIMIT,
+  ) {
     return this.prisma.txLog.findMany({
       where: { charId: characterId },
       orderBy: { createdAt: 'desc' },

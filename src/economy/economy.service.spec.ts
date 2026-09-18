@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../db/prisma.service';
 import { EconomyService } from './economy.service';
+import {
+  CharacterNotFoundError,
+  ItemNotFoundError,
+  InsufficientGoldError,
+} from '../core/errors/errors';
 
 describe('EconomyService', () => {
   let service: EconomyService;
@@ -30,9 +34,11 @@ describe('EconomyService', () => {
       findUnique: jest.fn(),
     },
     inventory: {
+      findMany: jest.fn(),
       upsert: jest.fn(),
     },
     txLog: {
+      findMany: jest.fn(),
       create: jest.fn(),
     },
   };
@@ -61,12 +67,10 @@ describe('EconomyService', () => {
         const mockTx = {
           character: {
             findUnique: jest.fn().mockResolvedValue(mockCharacter),
+            update: jest.fn(),
           },
           item: {
             findUnique: jest.fn().mockResolvedValue(mockItem),
-          },
-          character: {
-            update: jest.fn(),
           },
           inventory: {
             upsert: jest.fn(),
@@ -93,6 +97,7 @@ describe('EconomyService', () => {
         const mockTx = {
           character: {
             findUnique: jest.fn().mockResolvedValue(null),
+            update: jest.fn(),
           },
         };
         return callback(mockTx);
@@ -101,7 +106,7 @@ describe('EconomyService', () => {
       mockPrismaService.$transaction.mockImplementation(transactionMock);
 
       await expect(service.buyItem(1, 'health_potion', 1)).rejects.toThrow(
-        BadRequestException,
+        CharacterNotFoundError,
       );
     });
 
@@ -110,6 +115,7 @@ describe('EconomyService', () => {
         const mockTx = {
           character: {
             findUnique: jest.fn().mockResolvedValue(mockCharacter),
+            update: jest.fn(),
           },
           item: {
             findUnique: jest.fn().mockResolvedValue(null),
@@ -121,7 +127,7 @@ describe('EconomyService', () => {
       mockPrismaService.$transaction.mockImplementation(transactionMock);
 
       await expect(service.buyItem(1, 'invalid_item', 1)).rejects.toThrow(
-        BadRequestException,
+        ItemNotFoundError,
       );
     });
 
@@ -131,6 +137,7 @@ describe('EconomyService', () => {
         const mockTx = {
           character: {
             findUnique: jest.fn().mockResolvedValue(poorCharacter),
+            update: jest.fn(),
           },
           item: {
             findUnique: jest.fn().mockResolvedValue(mockItem),
@@ -142,7 +149,7 @@ describe('EconomyService', () => {
       mockPrismaService.$transaction.mockImplementation(transactionMock);
 
       await expect(service.buyItem(1, 'health_potion', 2)).rejects.toThrow(
-        BadRequestException,
+        InsufficientGoldError,
       );
     });
   });
@@ -165,7 +172,7 @@ describe('EconomyService', () => {
 
       expect(result).toEqual(mockInventory);
       expect(mockPrismaService.inventory.findMany).toHaveBeenCalledWith({
-        where: { charId: 1 },
+        where: { charId: 1, qty: { gt: 0 } },
         include: { item: true },
         orderBy: { item: { name: 'asc' } },
       });

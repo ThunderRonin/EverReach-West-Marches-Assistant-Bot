@@ -21,33 +21,38 @@ export class DungeonMasterGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     try {
       this.logger.log('[DungeonMasterGuard] canActivate() called');
-      
-      const request = context.switchToHttp().getRequest();
-      this.logger.log(`[DungeonMasterGuard] Request type: ${typeof request}, keys: ${Object.keys(request || {}).slice(0, 5).join(', ')}`);
-      
-      const interaction = request as CommandInteraction;
+
+      const args = context.getArgs<unknown[]>();
+      const interaction = args[0] as CommandInteraction | undefined;
 
       // Verify we have an interaction
       if (!interaction || !interaction.user) {
-        this.logger.warn('[DungeonMasterGuard] No interaction or user found - skipping guard');
+        this.logger.warn(
+          '[DungeonMasterGuard] No interaction or user found - skipping guard',
+        );
         return true;
       }
 
       const userId = interaction.user.id;
-      this.logger.log(`[DungeonMasterGuard] Checking permissions for user ${userId}`);
-      
-      const hasPermission = await this.permissionsService.hasAdminPermissions(
-        interaction,
+      this.logger.log(
+        `[DungeonMasterGuard] Checking permissions for user ${userId}`,
       );
 
-      this.logger.log(`[DungeonMasterGuard] Permission check result: ${hasPermission}`);
+      const hasPermission =
+        this.permissionsService.hasAdminPermissions(interaction);
+
+      this.logger.log(
+        `[DungeonMasterGuard] Permission check result: ${hasPermission}`,
+      );
 
       if (!hasPermission) {
         // Log the failed access attempt
         const guildInfo = interaction.guildId
           ? ` in guild ${interaction.guildId}`
           : ' in DM';
-        this.logger.warn(`[DungeonMasterGuard] Unauthorized admin command attempt by ${userId}${guildInfo}`);
+        this.logger.warn(
+          `[DungeonMasterGuard] Unauthorized admin command attempt by ${userId}${guildInfo}`,
+        );
 
         // Send user-friendly error response if we can
         if (typeof interaction.reply === 'function') {
@@ -63,12 +68,19 @@ export class DungeonMasterGuard implements CanActivate {
 
           try {
             await interaction.reply({ embeds: [embed], ephemeral: true });
-            this.logger.log('[DungeonMasterGuard] Permission denied message sent');
+            this.logger.log(
+              '[DungeonMasterGuard] Permission denied message sent',
+            );
           } catch (error) {
-            this.logger.error('[DungeonMasterGuard] Failed to send permission denied message:', error);
+            this.logger.error(
+              '[DungeonMasterGuard] Failed to send permission denied message:',
+              error,
+            );
           }
         } else {
-          this.logger.warn('[DungeonMasterGuard] Cannot send reply - interaction.reply not available');
+          this.logger.warn(
+            '[DungeonMasterGuard] Cannot send reply - interaction.reply not available',
+          );
         }
 
         return false;

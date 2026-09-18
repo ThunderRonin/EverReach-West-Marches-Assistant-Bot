@@ -10,7 +10,8 @@ export class PermissionsService {
 
   constructor(private readonly configService: ConfigService) {
     this.botOwnerId = this.configService.get<string>('BOT_OWNER_ID') || '';
-    this.dmRoleName = this.configService.get<string>('DM_ROLE_NAME') || 'Dungeon Master';
+    this.dmRoleName =
+      this.configService.get<string>('DM_ROLE_NAME') || 'Dungeon Master';
   }
 
   /**
@@ -40,25 +41,37 @@ export class PermissionsService {
    * Check if an interaction user has admin permissions
    * Allows: bot owner (anywhere) OR user with DM role (in guild)
    */
-  async hasAdminPermissions(interaction: CommandInteraction): Promise<boolean> {
+  hasAdminPermissions(interaction: CommandInteraction): boolean {
     const discordId = interaction.user.id;
-    this.logger.log(`[hasAdminPermissions] Checking permissions for user ${discordId}`);
+    this.logger.log(
+      `[hasAdminPermissions] Checking permissions for user ${discordId}`,
+    );
 
     // Bot owner always has permissions
     if (this.isBotOwner(discordId)) {
-      this.logger.log(`[hasAdminPermissions] User is bot owner - granting access`);
+      this.logger.log(
+        `[hasAdminPermissions] User is bot owner - granting access`,
+      );
       return true;
     }
 
     // In guild: check for DM role
     if (interaction.guildId && interaction.member) {
-      this.logger.log(`[hasAdminPermissions] In guild ${interaction.guildId}, checking for DM role`);
-      const hasDMRole = this.hasDungeonMasterRole(interaction.member as GuildMember);
-      this.logger.log(`[hasAdminPermissions] DM role check result: ${hasDMRole}`);
+      this.logger.log(
+        `[hasAdminPermissions] In guild ${interaction.guildId}, checking for DM role`,
+      );
+      const hasDMRole = this.hasDungeonMasterRole(
+        interaction.member as GuildMember,
+      );
+      this.logger.log(
+        `[hasAdminPermissions] DM role check result: ${hasDMRole}`,
+      );
       return hasDMRole;
     }
 
-    this.logger.log(`[hasAdminPermissions] Not in guild and not bot owner - denying access`);
+    this.logger.log(
+      `[hasAdminPermissions] Not in guild and not bot owner - denying access`,
+    );
     // In DM: only bot owner is allowed (already checked above)
     return false;
   }
@@ -69,9 +82,7 @@ export class PermissionsService {
   async getDungeonMasters(guild: Guild): Promise<GuildMember[]> {
     try {
       const members = await guild.members.fetch();
-      const dms = members.filter((member) =>
-        this.hasDungeonMasterRole(member),
-      );
+      const dms = members.filter((member) => this.hasDungeonMasterRole(member));
       return Array.from(dms.values());
     } catch (error) {
       this.logger.error(
