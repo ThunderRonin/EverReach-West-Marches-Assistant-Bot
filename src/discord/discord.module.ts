@@ -22,7 +22,7 @@ import { AdminCommands } from './commands/admin.commands';
 import { ReadyListener } from './listeners/ready.listener';
 import { ErrorListener } from './listeners/error.listener';
 import { ClientProvider } from './client.provider';
-import { PermissionsModule } from 'src/permissions/permissions.module';
+import { PermissionsModule } from '../permissions/permissions.module';
 
 @Module({
   imports: [

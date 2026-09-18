@@ -327,17 +327,21 @@ export class AdminCommands {
         `[dm-list] Fetching members from guild ${interaction.guildId}`,
       );
 
+      let timeoutHandle: NodeJS.Timeout | undefined;
       try {
         // Fetch members with timeout
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error('Member fetch timeout after 10 seconds')),
+            10000,
+          );
+        });
+
         const members = await Promise.race([
           guild.members.fetch(),
-          new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error('Member fetch timeout after 10 seconds')),
-              10000,
-            ),
-          ),
+          timeoutPromise,
         ]);
+        if (timeoutHandle) clearTimeout(timeoutHandle);
         this.logger.log(`[dm-list] Fetched ${members.size} members`);
 
         // Find members with roles that contain "master" or "dm" (case-insensitive)
@@ -377,6 +381,7 @@ export class AdminCommands {
         this.logger.log('[dm-list] About to send reply');
         return interaction.editReply({ embeds: [embed] });
       } catch (fetchError) {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
         this.logger.error('[dm-list] Member fetch failed:', fetchError);
         const embed = new EmbedBuilder()
           .setTitle('❌ Error')
