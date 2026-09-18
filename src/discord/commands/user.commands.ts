@@ -171,4 +171,31 @@ export class UserCommands {
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
+
+  @UseGuards(GuildOnlyGuard, CharacterExistsGuard)
+  @SlashCommand({
+    name: 'link',
+    description:
+      'Generate a code to link your Telegram account to this character',
+  })
+  async onLink(@Context() [interaction]: [CommandInteraction]) {
+    const user = await this.usersService.getUserByDiscordId(
+      interaction.user.id,
+      interaction.guildId!,
+    );
+
+    const code = await this.usersService.createAccountLinkToken(user!.id);
+
+    const embed = new EmbedBuilder()
+      .setTitle('🔗 Link Telegram Account')
+      .setColor('#00aaff')
+      .setDescription(
+        `Use this code to link your Telegram account to **${user!.character!.name}**:\n\n` +
+          `\`\`\`\n/link ${code}\n\`\`\`\n` +
+          `*This code will expire in 10 minutes.*\n\n` +
+          `Open the EverReach Telegram bot and send \`/link ${code}\` to sync your character across both platforms!`,
+      );
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
 }

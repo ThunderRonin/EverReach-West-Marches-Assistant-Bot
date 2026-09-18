@@ -8,13 +8,25 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  discordId String
-  guildId   String
-  createdAt DateTime  @default(now())
-  character Character?
-  notes     Note[]
+  id                Int                @id @default(autoincrement())
+  discordId         String?
+  telegramId        String?            @unique
+  guildId           String
+  createdAt         DateTime           @default(now())
+  character         Character?
+  notes             Note[]
+  accountLinkTokens AccountLinkToken[]
+
   @@unique([discordId, guildId])
+}
+
+model AccountLinkToken {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Character {

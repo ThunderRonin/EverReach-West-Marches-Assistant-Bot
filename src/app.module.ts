@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './db/prisma.module';
 import { DiscordModule } from './discord/discord.module';
+import { TelegramModule } from './telegram/telegram.module';
 import { CommonModule } from './common/common.module';
 import { PermissionsModule } from './permissions/permissions.module';
 
@@ -21,6 +22,7 @@ import { PermissionsModule } from './permissions/permissions.module';
     CommonModule,
     PermissionsModule,
     DiscordModule,
+    TelegramModule,
   ],
   controllers: [AppController],
   providers: [AppService],
